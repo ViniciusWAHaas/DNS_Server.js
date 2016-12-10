@@ -1,46 +1,47 @@
 //	https://tools.ietf.org/html/rfc1035#section-4.1.1
 {
 	header : {
-		
 		// 2 bytes	transaction id
-		id : 0,
-		
+		id : 0
+		,		
 		// 1 bit	false:query , true:response
-		qr : false,
-		
+		qr : false
+		,		
 		// 4 bits	0:standard , 1:inverse , 2:server status ,3-15:reserved
-		opcode : 0,
-		
+		opcode : 0
+		,		
 		// 1 bit	false:no authorative answer , true:authorative answer ( authorative answer AKA i own the domain in question 
-		aa : false,
-		
+		aa : false
+		,		
 		// 1 bit	false:OK , true:truncated the Query is to big for the transmission channel
-		tc : false,
-		
+		tc : false
+		,		
 		// 1 bit	true:recursion desired
-		rd : false,
-
+		rd : false
+		,
 		// 1 bit	false:recursion unavailable , true:recursion available
-		ra : false,
-
+		ra : false
+		,
 		// 3 bit	always 0, Reserved
-		z : 0,
-
+		z : 0
+		,
 		// 4 bits	0 : no error , 1:format error , 2:server failure , 3:name error, 4:not implemented, 5:refused , 6-15:reserved
-		rcode : 0,
-
+		rcode : 0
+		,
 		// 2 bytes	question count
-		qdcount : 0,
-		
+		qdcount : 0
+		,		
 		// 2 bytes	answer count
-		ancount : 0,
-		
+		ancount : 0
+		,		
 		// 2 bytes	ns count
-		nscount : 0,
-		
+		nscount : 0
+		,		
 		// 2 bytes	addition resources count
-		arcount : 0,
+		arcount : 0
 	}
 	,
 	question : []
+	,
+	answer : []
 }
