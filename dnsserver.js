@@ -128,6 +128,8 @@ function TestedeMSG(req){
 	return lastquery = query;
 }
 
+//TODO this doesnt work
+
 var qnameToName = function(qname){
 	var domain= '';
 	var position=0;
