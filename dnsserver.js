@@ -1,7 +1,6 @@
-//FOR LEARNING PURPOSES Thanks to https://github.com/sh1mmer/dnsserver.js
-// aaaayyy lmao.
-// disasemble and interpret a inbound UDP Packet into a DNS Query
-// todo: a answer for it. idk how do i do it.
+lastquery = {};
+
+/* File: DNS\DNS_SRV_Daemon.js */
 
 var PORT = 53;
 var HOST = '127.0.0.1';
@@ -16,13 +15,20 @@ server.on('listening', function () {
 
 server.on('message', function (message, remote) {
 	console.log(Buffer.from(message));
-	TestedeMSG(message);
+	var DnsQuery = BufferToDnsQuery(message);
+	/*
+	var answer=[];
+	for(var a=0;DnsQuery.question.length;a++)
+		answer[a] = searchFunction(DnsQuery.question[a]);
+	//TODO remove repeated answers AKA remove redundancies(?).
+	*/
+	
 });
 server.bind(PORT, HOST);
 
-lastquery = {};
+/* File: DNS\Buffer_to_Query.js */
 
-function TestedeMSG(req){	
+function BufferToDnsQuery(req){	
 	var sliceBits = function(b, off, len) {
 		var s = 7 - (off + len - 1);
 
@@ -32,15 +38,13 @@ function TestedeMSG(req){
     
     var query = new Object();
     query.header = {};
-    //TODO write code to break questions up into an array
     query.question = [];
 
     var tmpSlice;
     var tmpByte;
-        
     //transaction id
     // 2 bytes
-    query.header.id = req.slice(0,2);
+    query.header.id = Buffer2Number(req.slice(0,2));
 
     //slice out a byte for the next section to dice into binary.
     tmpSlice = req.slice(2,3);
@@ -88,16 +92,16 @@ function TestedeMSG(req){
 
     //question count
     // 2 bytes
-    query.header.qdcount = req.slice(4,6);
+    query.header.qdcount = Buffer2Number(req.slice(4,6));
     //answer count
     // 2 bytes
-    query.header.ancount = req.slice(6,8);
+    query.header.ancount = Buffer2Number(req.slice(6,8));
     //ns count
     // 2 bytes
-    query.header.nscount = req.slice(8,10);
+    query.header.nscount = Buffer2Number(req.slice(8,10));
     //addition resources count
     // 2 bytes
-    query.header.arcount = req.slice(10, 12);
+    query.header.arcount = Buffer2Number(req.slice(10, 12));
     
 	query.questio = {};
     query.questio.qname = req.slice(12, req.length - 4);
@@ -113,33 +117,47 @@ function TestedeMSG(req){
 	var lastposition=12
 	var position=lastposition;
 	
-	for(var q=0;q<=query.header.qdcount;q++){
+	for(var q=0;q<query.header.qdcount;q++){
 		lastposition=position;
 		query.question[q]={};
 		while(req[position++] !== 0 && position < req.length);
-		query.question[q].qname = qnameToName(req.slice(lastposition, position));
-		query.question[q].qtype = req.slice(position, position+2);
-		query.question[q].qclass = req.slice(position+2, position+4);
+		query.question[q].qname = qname2Name( req.slice(lastposition, position) );
+		query.question[q].qtype = Buffer2Number(req.slice(position, position+2));
+		query.question[q].qclass = Buffer2Number(req.slice(position+2, position+4));
 		position+=4;
 	}
-		
 	
 	console.log(JSON.stringify(query));
 	return lastquery = query;
 }
 
-//TODO this doesnt work
+/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
-var qnameToName = function(qname){
-	var domain= '';
+// function qname2Name(typeof Buffer){ return typeof String; }
+var qname2Name = function(qname){
+	var domain=new String();
 	var position=0;
-	domain+=qname.substring(position+1,position+=qname[position]);
-	for(var i=0;i<qname.length;i++){
-		if (qname[i] == 0) {domain = domain.substring(0, domain.length - 1);break;}
-		var tmpBuf = qname.slice(i+1, i+qname[i]+1);
-		domain += tmpBuf.toString('binary', 0, tmpBuf.length);
-		domain += '.';        
-		i = i + qname[i];
-	}
+
+	while(qname[position] != 0 && position < qname.length)	// FOR SOME ███████ REASON I WENT CRAZY HERE AND GOT STUCK INTO INFINITY HAVING TO REBOOT THIS SHIET
+		domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
+
 	return domain;
 };
+//       qname2Name(Buffer.from([0x06,0x67,0x6f,0x6f,0x67,0x6c,0x65,0x03,0x63,0x6f,0x6d,0x00]));
+// copypaste into CLI to test      ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^
+//                                 ◊    g    o    o    g    l    e    ◊    c    o    m    END
+
+// ◊ = The Next N values are UTF8 Chars and ◊ replaced with a '.' ( dot )
+// END = empty value meaning that there is ZERO UTF8 Chars
+
+/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
+
+var Buffer2Number = function(input){
+	input = input.reverse();
+	var output=0;
+	for(var a=input.length;a>0;a--){
+		output+=input[a]<<(8*(a));
+	}
+	output+=input[0];
+	return output;
+}
