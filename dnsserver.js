@@ -1,3 +1,8 @@
+//FOR LEARNING PURPOSES Thanks to https://github.com/sh1mmer/dnsserver.js
+// aaaayyy lmao.
+// disasemble and interpret a inbound UDP Packet into a DNS Query
+// todo: a answer for it. idk how do i do it.
+
 var PORT = 53;
 var HOST = '127.0.0.1';
 
