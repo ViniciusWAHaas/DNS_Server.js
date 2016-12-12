@@ -12,108 +12,98 @@ server.on('listening', function () {
     var address = server.address();
     console.log('UDP Server listening on ' + address.address + ":" + address.port);
 });
+lastquery = {};
 
 server.on('message', function (message, remote) {
 	console.log(Buffer.from(message));
-	var DnsQuery = BufferToDnsQuery(message);
+	var DnsQuery = Buffer2DnsQuery(message);
 	/*
 	var answer=[];
 	for(var a=0;DnsQuery.question.length;a++)
 		answer[a] = searchFunction(DnsQuery.question[a]);
 	//TODO remove repeated answers AKA remove redundancies(?).
-	*/
 	
+	
+	*/
 });
 server.bind(PORT, HOST);
 
+/* File: OBJ\Query.json */
+
+var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[]};
+
 /* File: DNS\Buffer_to_Query.js */
 
-function BufferToDnsQuery(req){	
+function Buffer2DnsQuery(req){	
 	var sliceBits = function(b, off, len) {
+		if(!len) len = off+1;
 		var s = 7 - (off + len - 1);
 
 		b = b >>> s;
 		return b & ~(0xff << len);
 	};
     
-    var query = new Object();
-    query.header = {};
-    query.question = [];
+/**********************************************************************************************************************\
+*	DNS Query Header Package / Packet is like this: ( each letter is a bit, divided in 8 bits = 1 Byte )
+*	
+*	AAAAAAAA AAAAAAAA
+*	BCCCCDEF GHHHIIII
+*	JJJJJJJJ JJJJJJJJ
+*	KKKKKKKK KKKKKKKK
+*	LLLLLLLL LLLLLLLL
+*	MMMMMMMM MMMMMMMM
+*	######## ########
+*	
+*	A = INT16	Identification of the packet
+*	B = BOOL	Response
+*	C = INT4	Question Code
+*	D = BOOL	Authority
+*	E = BOOL	Truncated
+*	F = BOOL	Recursion Desired
+*	G = BOOL	Recursion Avaliable
+*	H = ZERO	nothing. really
+*	I = INT4	Response Code
+*	J = INT16	Amount of Questions
+*	K = INT16	Amount of Answers
+*	L = INT16	Amount of NSthing
+*	M = INT16	Amount of ARThing
+*	# = ????	Flexibe content depends on the J,K,L and M
+*	
+*	details of more tecnical info here: https://tools.ietf.org/html/rfc1035#section-4.1.1
+\**********************************************************************************************************************/
+    var query = new Object(DNSQuery);
 
+	const query.raw=req;
+	
     var tmpSlice;
     var tmpByte;
-    //transaction id
-    // 2 bytes
-    query.header.id = Buffer2Number(req.slice(0,2));
 
-    //slice out a byte for the next section to dice into binary.
-    tmpSlice = req.slice(2,3);
-    //convert the binary buf into a string and then pull the char code
-    //for the byte
+    query.header.id = Buffer2Number(req.slice(0,2));	// AAAAAAAA
+
+    tmpSlice = req.slice(2,3);	// BCCCCDEF
     tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);
     
-    //qr
-    // 1 bit
-    query.header.qr = sliceBits(tmpByte, 0,1);
-    //opcode
-    // 0 = standard, 1 = inverse, 2 = server status, 3-15 reserved
-    // 4 bits
-    query.header.opcode = sliceBits(tmpByte, 1,4);
-    //authorative answer
-    // 1 bit
-    query.header.aa = sliceBits(tmpByte, 5,1);
-    //truncated
-    // 1 bit
-    query.header.tc = sliceBits(tmpByte, 6,1);
-    //recursion desired
-    // 1 bit
-    query.header.rd = sliceBits(tmpByte, 7,1);
+    query.header.qr = sliceBits(tmpByte, 0,1)?true:false;	// B
+    query.header.opcode = sliceBits(tmpByte, 1,4);	// CCCC
+    query.header.aa = sliceBits(tmpByte, 5,1)?true:false;	// D
+    query.header.tc = sliceBits(tmpByte, 6,1)?true:false;	// E
+    query.header.rd = sliceBits(tmpByte, 7,1)?true:false;	// F
 
-    //slice out a byte to dice into binary
-    tmpSlice = req.slice(3,4);
-    //convert the binary buf into a string and then pull the char code
-    //for the byte
+    tmpSlice = req.slice(3,4); // GHHHIIII
     tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);
     
-    //recursion available
-    // 1 bit
-    query.header.ra = sliceBits(tmpByte, 0,1);
-
-    //reserved 3 bits
-    // rfc says always 0
-    query.header.z = sliceBits(tmpByte, 1,3);
-
-    //response code
-    // 0 = no error, 1 = format error, 2 = server failure
-    // 3 = name error, 4 = not implemented, 5 = refused
-    // 6-15 reserved
-    // 4 bits
-    query.header.rcode = sliceBits(tmpByte, 4,4);
-
-    //question count
-    // 2 bytes
-    query.header.qdcount = Buffer2Number(req.slice(4,6));
-    //answer count
-    // 2 bytes
-    query.header.ancount = Buffer2Number(req.slice(6,8));
-    //ns count
-    // 2 bytes
-    query.header.nscount = Buffer2Number(req.slice(8,10));
-    //addition resources count
-    // 2 bytes
-    query.header.arcount = Buffer2Number(req.slice(10, 12));
-    
-	query.questio = {};
-    query.questio.qname = req.slice(12, req.length - 4);
-    //qtype
-    query.questio.qtype = req.slice(req.length - 4, req.length - 2);
-    //qclass
-    query.questio.qclass = req.slice(req.length - 2, req.length);
+    query.header.ra = sliceBits(tmpByte, 0,1)?true:false; // G
+    query.header.z = sliceBits(tmpByte, 1,3); // HHH
+    query.header.rcode = sliceBits(tmpByte, 4,4); // IIII
+    query.header.qdcount = Buffer2Number(req.slice(4,6)); // JJJJJJJJ JJJJJJJJ
+    query.header.ancount = Buffer2Number(req.slice(6,8)); // KKKKKKKK KKKKKKKK
+    query.header.nscount = Buffer2Number(req.slice(8,10)); // LLLLLLLL LLLLLLLL
+    query.header.arcount = Buffer2Number(req.slice(10, 12)); // MMMMMMMM MMMMMMMM
 	
-    //qname is the sequence of domain labels
-    //assuming one question
-    //qname length is not fixed however it is 4
-    //octets from the end of the buffer
+	/***\
+	*	this is where things gets complicated 
+	*	TODO: Explanation of this part
+	\***/
 	var lastposition=12
 	var position=lastposition;
 	
@@ -129,6 +119,13 @@ function BufferToDnsQuery(req){
 	
 	console.log(JSON.stringify(query));
 	return lastquery = query;
+}
+
+/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
+
+function DnsQuery2Buffer(DNSQuery){	
+	var BufferContent = new Buffer()
+
 }
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
@@ -152,6 +149,7 @@ var qname2Name = function(qname){
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
+// function Buffer2Number(typeof Buffer){ return typeof Number }
 var Buffer2Number = function(input){
 	input = input.reverse();
 	var output=0;
@@ -161,3 +159,60 @@ var Buffer2Number = function(input){
 	output+=input[0];
 	return output;
 }
+// Buffer2Number(Buffer.from([0x00,0x00]));
+// Buffer2Number(Buffer.from([0x00,0x01]));
+// Buffer2Number(Buffer.from([0x00,0x09]));
+// Buffer2Number(Buffer.from([0x00,0x0F]));
+// Buffer2Number(Buffer.from([0x00,0x10]));
+// Buffer2Number(Buffer.from([0x00,0xF0]));
+// Buffer2Number(Buffer.from([0x01,0x00]));
+// Buffer2Number(Buffer.from([0x01,0x01]));
+// Buffer2Number(Buffer.from([0x01,0x04]));
+
+// takes every INT8 in Buffer and convert to Number
+
+/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
+
+// function Number2Boolean(typeof Number){ return typeof Array[typeof Boolean, ... , typeof Boolean] }
+var Number2Boolean = function(input,valueA,valueB){
+	if(typeof input != 'number')
+		return [];
+	var output = [];
+	var multiplier=0;
+	
+	while(1<<multiplier++ < input)
+		output[multiplier-1]= (typeof valueA!= "undefined"?valueA:false);
+	
+	while(--multiplier>=0){
+		if(input >= 1<<multiplier){
+			input -= 1<<multiplier;
+			output[multiplier] = (typeof valueB!= "undefined"?valueB:true);
+		}
+	}
+	return output;
+}
+
+/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
+
+// function Boolean2Number(typeof Array[typeof Boolean, ... , typeof Boolean]){ return typeof Number }
+var Boolean2Number = function(input){
+	if(typeof input != "object")
+		return NaN;
+	var output = 0;
+	var multiplier=0;
+	
+	while(typeof input[multiplier] != 'undefined'){
+		if(input[multiplier])output+=1<<multiplier;
+		++multiplier;
+	}
+	
+	while(--multiplier>=0){
+		if(input >= 1<<multiplier){
+			input -= 1<<multiplier;
+			output[multiplier] = (typeof valueB!= "undefined"?valueB:true);
+		}
+	}
+	return output;
+}
+
+/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
