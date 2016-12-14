@@ -1,4 +1,3 @@
-lastquery = {};
 
 /* File: DNS\DNS_SRV_Daemon.js */
 
@@ -12,7 +11,7 @@ server.on('listening', function () {
     var address = server.address();
     console.log('UDP Server listening on ' + address.address + ":" + address.port);
 });
-lastquery = {};
+
 
 server.on('message', function (message, remote) {
 	console.log(Buffer.from(message));
@@ -33,6 +32,8 @@ server.bind(PORT, HOST);
 var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[]};
 
 /* File: DNS\Buffer_to_Query.js */
+
+lastquery = {};
 
 function Buffer2DnsQuery(req){	
 	var sliceBits = function(b, off, len) {
@@ -100,10 +101,10 @@ function Buffer2DnsQuery(req){
     query.header.nscount = Buffer2Number(req.slice(8,10)); // LLLLLLLL LLLLLLLL
     query.header.arcount = Buffer2Number(req.slice(10, 12)); // MMMMMMMM MMMMMMMM
 	
-	/***\
-	*	this is where things gets complicated 
-	*	TODO: Explanation of this part
-	\***/
+/***\
+*	this is where things gets complicated 
+*	TODO: Explanation of this part
+\***/
 	var lastposition=12
 	var position=lastposition;
 	
@@ -124,7 +125,9 @@ function Buffer2DnsQuery(req){
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 function DnsQuery2Buffer(DNSQuery){	
-	var BufferContent = new Buffer()
+	var BufferContent = [];
+	
+	BufferContent
 
 }
 
@@ -168,6 +171,21 @@ var Buffer2Number = function(input){
 // Buffer2Number(Buffer.from([0x01,0x00]));
 // Buffer2Number(Buffer.from([0x01,0x01]));
 // Buffer2Number(Buffer.from([0x01,0x04]));
+
+// takes every INT8 in Buffer and convert to Number
+
+/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
+
+// function Number2Buffer(typeof Number){ return typeof Buffer }
+var Number2Buffer = function(input,BufSize){
+	var output=new Buffer(2);
+	output
+	for(var a=input.length;a>0;a--){
+		output+=input[a]<<(8*(a));
+	}
+	output+=input[0];
+	return output;
+}
 
 // takes every INT8 in Buffer and convert to Number
 
