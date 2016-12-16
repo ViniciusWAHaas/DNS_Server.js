@@ -52,8 +52,9 @@ server.bind(PORT, HOST);
 var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[]};
 /* File: OBJ\qtype.json */
 var DNSqtype = {1:'A',2:'NS',3:'MD',4:'MF',5:'CNAME',6:'SOA',7:'MB',8:'MG',9:'MR',10:'NULL',11:'WKS',12:'PTR',13:'HINFO',14:'MINFO',15:'MX',16:'TXT',255:'*'};
+var DNSqclass = {1:'IN'};
 
-/* File: DNS\Buffer_to_Query.js */
+/* File: DNS\Buffer2Query.js */
 /**********************************************************************************************************************\
 *    DNS Query Header Package / Packet is like this: ( each letter is a bit | divided in 8 bits = 1 Byte )
 *    
@@ -83,6 +84,7 @@ var DNSqtype = {1:'A',2:'NS',3:'MD',4:'MF',5:'CNAME',6:'SOA',7:'MB',8:'MG',9:'MR
 *    
 *    details of more tecnical info here: https://tools.ietf.org/html/rfc1035#section-4.1.1
 \**********************************************************************************************************************/
+lastquery = {};
 function Buffer2DnsQuery(req){    
     var sliceBits = function(b, off, len) {
         if(!len) len = off+1;
@@ -100,6 +102,7 @@ function Buffer2DnsQuery(req){
     var tmpSlice;
     var tmpByte;
 
+// Build Header
     query.header.id = Buffer2Number(req.slice(0,2));    // AAAAAAAA
 
     tmpSlice = req.slice(2,3);    // BCCCCDEF
@@ -132,7 +135,7 @@ function Buffer2DnsQuery(req){
         lastposition=position;
         query.question[q]={};
         while(req[position++] != 0 && position < req.length);
-        query.question[q].name = qname2Name( req.slice(lastposition, position) );
+        query.question[q].name = qname2name( req.slice(lastposition, position) );
         query.question[q].qtype = Buffer2Number(req.slice(position, position+2));
         query.question[q].type = DNSqtype[query.question[q].qtype];
         query.question[q].qclass = Buffer2Number(req.slice(position+2, position+4));
@@ -140,23 +143,28 @@ function Buffer2DnsQuery(req){
 		console.log(req.slice(lastposition, position+4));
     }
 	
-// Gathering Answers TODO: understando those ████ers.
+	
+// Gathering Answers TODO: understando those ████ers. i dont get it and wasting my hobby time with this shiet
     var amount = query.header.ancount;
     for(var a=0;a<amount;a++){
+		lastposition=position;
 		query.answer[a]={};
-        query.answer[a].dunnoA = req.slice(lastposition, position+2);
+        query.answer[a].code = req.slice(lastposition, position+2);
         query.answer[a].qtype = Buffer2Number(req.slice(lastposition+2, position+4));
         query.answer[a].qclass = Buffer2Number(req.slice(lastposition+4, position+6));
         query.answer[a].TTL = Buffer2Number(req.slice(lastposition+6, position+10));
-        query.answer[a].size = Buffer2Number(req.slice(lastposition+10, position+12));
+        var size = Buffer2Number(req.slice(lastposition+10, position+12));
+		AnswerData = req.slice(lastposition+12,position+12+size);
+		position=(position+12+size);
+		if(query.answer[a].qtype == 1){
+			query.answer[a].data = ""+AnswerData[0]+"."+AnswerData[1]+"."+AnswerData[2]+"."+AnswerData[3]+"";
+		}
 	}
-    
-
-
     return lastquery = query;
 }
+//some test captured from sniffer
 Buffer2DnsQuery(Buffer.from([0x3d,0xe5,0x81,0x80,0x00,0x01,0x00,0x04,0x00,0x00,0x00,0x00,0x03,0x77,0x77,0x77,0x0f,0x6d,0x73,0x66,0x74,0x63,0x6f,0x6e,0x6e,0x65,0x63,0x74,0x74,0x65,0x73,0x74,0x03,0x63,0x6f,0x6d,0x00,0x00,0x01,0x00,0x01,0xc0,0x0c,0x00,0x05,0x00,0x01,0x00,0x00,0x0c,0x10,0x00,0x13,0x06,0x76,0x34,0x6e,0x63,0x73,0x69,0x06,0x6d,0x73,0x65,0x64,0x67,0x65,0x03,0x6e,0x65,0x74,0x00,0xc0,0x35,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x0a,0x00,0x19,0x04,0x6e,0x63,0x73,0x69,0x08,0x34,0x2d,0x63,0x2d,0x30,0x30,0x30,0x33,0x08,0x63,0x2d,0x6d,0x73,0x65,0x64,0x67,0x65,0xc0,0x43,0xc0,0x54,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x0a,0x00,0x02,0xc0,0x59,0xc0,0x59,0x00,0x01,0x00,0x01,0x00,0x00,0x00,0x20,0x00,0x04,0x0d,0x6b,0x04,0x34]));
-// do not mind this up here. its a raw capture from wireshark. yeah i am learning from there and guessing.
+Buffer2DnsQuery(Buffer.from([0x91,0x6d,0x81,0x80,0x00,0x01,0x00,0x05,0x00,0x00,0x00,0x00,0x06,0x63,0x6c,0x69,0x65,0x6e,0x74,0x03,0x77,0x6e,0x73,0x07,0x77,0x69,0x6e,0x64,0x6f,0x77,0x73,0x03,0x63,0x6f,0x6d,0x00,0x00,0x01,0x00,0x01,0xc0,0x0c,0x00,0x05,0x00,0x01,0x00,0x00,0x0a,0xa4,0x00,0x23,0x03,0x77,0x6e,0x73,0x06,0x6e,0x6f,0x74,0x69,0x66,0x79,0x07,0x77,0x69,0x6e,0x64,0x6f,0x77,0x73,0x03,0x63,0x6f,0x6d,0x06,0x61,0x6b,0x61,0x64,0x6e,0x73,0x03,0x6e,0x65,0x74,0x00,0xc0,0x34,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x26,0x00,0x0c,0x09,0x61,0x6d,0x65,0x72,0x69,0x63,0x61,0x73,0x31,0xc0,0x38,0xc0,0x63,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x29,0x00,0x06,0x03,0x62,0x6e,0x32,0xc0,0x34,0xc0,0x7b,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x2a,0x00,0x0b,0x08,0x62,0x6e,0x32,0x77,0x6e,0x73,0x31,0x62,0xc0,0x13,0xc0,0x8d,0x00,0x01,0x00,0x01,0x00,0x00,0x01,0x95,0x00,0x04,0x41,0x34,0x6c,0xfe]));
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
@@ -172,8 +180,8 @@ function DnsQuery2Buffer(DNSQuery){
 }
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
-// function qname2Name(typeof Buffer){ return typeof String; }
-var qname2Name = function(qname){
+// function qname2name(typeof Buffer){ return typeof String; }
+var qname2name = function(qname){
     var domain=new String();
     var position=0;
 
@@ -184,22 +192,21 @@ var qname2Name = function(qname){
 };
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
-// function qname2Name(typeof Buffer){ return typeof String; }
-var Name2qname = function(qname){
-    var domain=new String();
-    var position=0;
-
-    while(qname[position] != 0 && position < qname.length)
-        domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
-
-    return domain;
+// function name2qname(typeof String){ return typeof String; }
+var name2qname = function(domain) {
+    var tokens = domain.split(".");
+    var qname = [];
+    var offset = 0;
+    for(var i=0; i<tokens.length;i++) {
+        qname[offset++]=tokens[i].length;
+        for(var j=0;j<tokens[i].length;j++) {
+            qname[offset++] = tokens[i].charCodeAt(j);
+        }
+    }
+    qname[offset] = 0;
+    
+    return Buffer.from(qname);
 };
-//       qname2Name(Buffer.from([0x06,0x67,0x6f,0x6f,0x67,0x6c,0x65,0x03,0x63,0x6f,0x6d,0x00]));
-// copypaste into CLI to test      ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^   ^^
-//                                 ◊    g    o    o    g    l    e    ◊    c    o    m    END
-
-// ◊ = The Next N values are the UTF8 Chars and ◊ replaced with a '.' ( dot )
-// END = empty value meaning that there is ZERO UTF8 Chars
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
