@@ -2,16 +2,19 @@
 // intended do be a server and client to DNS queries. receive from a server and forward as a client to another server.
 // save the queries for furute use. you know.
 
-/* File: DNS\DNS_SRV_Daemon.js */
+const dgram = require('dgram');
+const server = dgram.createSocket('udp4');
+const dns = require('dns');
+const fs = require('fs');
 
+/* File: DNS\DNS_SRV_Daemon.js */
 // https://nodejs.org/api/dgram.html#dgram_socket_send_msg_offset_length_port_address_callback
 
 var PORT = 53;
 var HOST = '127.0.0.1';
 
-if(!dgram)
-    var dgram = require('dgram');
-const server = dgram.createSocket('udp4');
+
+var logoutput = fs.createWriteStream("./writetext.json");
 
 server.on('listening', function () {
     var address = server.address();
@@ -20,61 +23,73 @@ server.on('listening', function () {
 lastquery = {};
 
 server.on('message', function (message, remote) {
-    console.log("####")
-    // console.log(Buffer.from(message));
-    var DnsQuery = Buffer2DnsQuery(message);
-    
-    console.log("network:\t{output:"+JSON.stringify({"host":HOST,"port":PORT})+",input:"+JSON.stringify(remote)+"}");
-    console.log("header: \t"+JSON.stringify(DnsQuery.header));
-    console.log("question:\t"+JSON.stringify(DnsQuery.question));
-    console.log("answers:\t"+JSON.stringify(DnsQuery.answer));
-    /*
-    var answer=[];
-    for(var a=0;DnsQuery.question.length;a++)
-        answer[a] = searchFunction(DnsQuery.question[a]);
-    //TODO remove repeated answers AKA remove redundancies(?).
-    
-    
-    var Response = DNSQuery2Buffer(DNSQuery);
-    */
+	UDPTemporarynamething(message,function(response){
+			
+		console.log("\n####################");
+		// console.log(Buffer.from(message));
+		var DnsQuery = Buffer2DnsQuery(message);
+		logoutput.write(JSON.stringify(DnsQuery) + "\n");
+		
+		console.log("header: \t"+JSON.stringify(DnsQuery.header));
+		console.log("question:\t"+JSON.stringify(DnsQuery.question));
+		console.log("answers:\t"+JSON.stringify(DnsQuery.answer));
+		
+		/*
+		var answer=[];
+		for(var a=0;DnsQuery.question.length;a++)
+			answer[a] = searchFunction(DnsQuery.question[a]);
+		//TODO remove repeated answers AKA remove redundancies(?).
+		
+		
+		var dasdf = DNSQuery2Buffer(DNSQuery);
+		*/
 	
-	//server.send(message,remote.port,remote.address);
-	
-	
+		
+        //server.send(response, remote.port, remote.address);
+		var DnsQuerty = Buffer2DnsQuery(response);
+	    logoutput.write(JSON.stringify(DnsQuerty) + "\n");
+		
+		console.log("####################");
+		console.log("header: \t"+JSON.stringify(DnsQuerty.header));
+		console.log("question:\t"+JSON.stringify(DnsQuerty.question));
+		console.log("answers:\t"+JSON.stringify(DnsQuerty.answer));
+		
+		
+		logoutput.write(JSON.stringify(response) + "\n");
+		server.send(response,remote.port,remote.address);
+		console.log("\n");
+		console.log("IN PUT:"+message.toString('hex'));
+		console.log("OUTPUT:"+response.toString('hex'));
+	});
 });
 
 
 server.bind(PORT);//, HOST);
 
-
 var counterqueryidk=50000;
-
-var UDPTemporarynamething(msg,callback){
+var UDPTemporarynamething = function(messg,callback){
 	// A Client for forwarding msg
     var client = dgram.createSocket('udp4');
 	
 	client.on('listening', function(){console.log(JSON.stringify(client.address()))});
 	client.on('error', function(err){console.log(`server error:\n${err.stack}`);client.close();});
-    client.on('message',function (msg,remota){
-        //server.send(msg, remote.port, remote.address);
-		var DnsQuerty = Buffer2DnsQuery(msg);
-		
-		console.log("####################");
-		console.log("network:\t{output:"+JSON.stringify(client.address())+",input:"+JSON.stringify(remota)+"}");
-		console.log("header: \t"+JSON.stringify(DnsQuerty.header));
-		console.log("question:\t"+JSON.stringify(DnsQuerty.question));
-		console.log("answers:\t"+JSON.stringify(DnsQuerty.answer));
-		
-		server.send(msg,remote.port,remote.address);
-    });
+    client.on('message',function (msg,remota){callback(msg);});
     client.bind(++counterqueryidk,function(){
 		setTimeout(function(){client.close();client.removeAllListeners();},1000*30);
-		client.send(message,53,'10.8.0.20');//,function(err,bytes){if(err)return;console.log("wot\t"+JSON.stringify(bytes));server.send(msg, remote.port, remote.address);});
+		client.send(messg,53,'10.8.0.20');//,function(err,bytes){if(err)return;console.log("wot\t"+JSON.stringify(bytes));server.send(msg, remote.port, remote.address);});
 	});
 	if(counterqueryidk >= 60000)
 		counterqueryidk=50000;
 };
 
+/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
+/*
+var LoggerThingvars = [];
+var LoggerThing(code,fn){
+	LoggerThingvars[code]
+}
+
+/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 /* File: OBJ\Query.json */
 var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[]};
@@ -252,15 +267,16 @@ var Boolean2Number = function(input){
 //	*    OOOOOOOO NNNNNNNN                                                                                                 *
 //	*    OOOOOOOO OOOOOOOO                                                                                                 *
 //	*    OOOOOOOO NNNNNNNN                                                                                                 *
-//	*    PPPPPPPP QQQQQQQQ                                                                                                 *
+//	*    PPPPPPPP PPPPPPPP                                                                                                 *
+//	*	 QQQQQQQQ QQQQQQQQ                                                                                                 *
 //	*                                                                                                                      *
 //	*    N = INT8     The amount of next INT8 as CHARs to be in query                                                      *
 //	*    O = INT8     Charactere in the table ASC8 ( or ASC7 , idk yet, go easy or claim your superiority in the comments section )
-//	*    P = INT8     code of que requisition. 1 for A ( IPv4 ) , 5 for an alias ( Another name to search for ) , and others 256 codes possible
-//	*    Q = INT8     idk , why this exist. why? if this thing is not 1 ( ONE ) it is not INTERNET related request.        *
+//	*    P = INT16    code of que requisition. 1 for A ( IPv4 ) , 5 for an alias ( Another name to search for ) , and others 256 codes possible
+//	*    Q = INT16    idk , why this exist. why? if this thing is not 1 ( ONE ) it is not INTERNET related request.        *
 //	*                                                                                                                      *
 //	*    in the example there i put NOOOOOONOOONPQ order, why? look in the line below                                      *
-//	*                               .GOOGLE.COM.          did you notice? N is . (dot) the next O chars to be show         *
+//	*                               .GOOGLE.COM.          did you notice? N is . (dot) and the next O chars to be show     *
 //	*    the first N is 0x06, means that the next bytes is chars which is OOOOOO                                           *
 //	*    then again is N with 0x03 saying the next OOO is chars.                                                           *
 //	*    the last N contais 0x00. no next chars, OR end of the string to ask                                               *
@@ -280,7 +296,7 @@ function Buffer2DnsQuery(req){
 
     var query = new Object(DNSQuery);
 
-    query.raw=req;
+    query.raw=req.toString("hex");
     
     var tmpSlice;
     var tmpByte;
@@ -326,10 +342,12 @@ function Buffer2DnsQuery(req){
     }
 	
 // Gathering Answers TODO: understando those ████ers. i dont get it and wasting my hobby time with this shiet
+// https://tools.ietf.org/html/rfc1035#section-4.1.3
     var amount = query.header.ancount;
     for(var a=0;a<amount;a++){
 		lastposition=position;
 		query.answer[a]={};
+		query.answer[a].name = "";	// something wrong here TODO: discover it.
         query.answer[a].code = req.slice(lastposition, position+2);
         query.answer[a].qtype = Buffer2Number(req.slice(lastposition+2, position+4));
         query.answer[a].qclass = Buffer2Number(req.slice(lastposition+4, position+6));
@@ -341,6 +359,11 @@ function Buffer2DnsQuery(req){
 			query.answer[a].data = ""+AnswerData[0]+"."+AnswerData[1]+"."+AnswerData[2]+"."+AnswerData[3]+"";
 		}
 	}
+	
+	// i do not wanna do the rest, why? i have no intent to use those.
+	// if any of you wizards in training want to do the rest, you guys are welcome.
+	// remember to build the credits of those involved. :D
+	
     return lastquery = query;
 }
 //some test captured from sniffer
