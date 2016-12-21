@@ -27,12 +27,13 @@ server.on('message', function (message, remote) {
 			
 		console.log("\n####################");
 		// console.log(Buffer.from(message));
-		var DnsQuery = Buffer2DnsQuery(message);
+		var DnsQuery = new Buffer2DnsQuery(message);
 		logoutput.write(JSON.stringify(DnsQuery) + "\n");
 		
 		console.log("header: \t"+JSON.stringify(DnsQuery.header));
 		console.log("question:\t"+JSON.stringify(DnsQuery.question));
 		console.log("answers:\t"+JSON.stringify(DnsQuery.answer));
+		console.log("answers2:\t"+JSON.stringify(DnsQuery.namespace));
 		
 		/*
 		var answer=[];
@@ -42,20 +43,20 @@ server.on('message', function (message, remote) {
 		
 		
 		var dasdf = DNSQuery2Buffer(DNSQuery);
-		*/
-	
-		
+		*/		
         //server.send(response, remote.port, remote.address);
-		var DnsQuerty = Buffer2DnsQuery(response);
+		
+		var DnsQuerty = new Buffer2DnsQuery(response);
 	    logoutput.write(JSON.stringify(DnsQuerty) + "\n");
 		
 		console.log("####################");
 		console.log("header: \t"+JSON.stringify(DnsQuerty.header));
 		console.log("question:\t"+JSON.stringify(DnsQuerty.question));
 		console.log("answers:\t"+JSON.stringify(DnsQuerty.answer));
+		console.log("answers2:\t"+JSON.stringify(DnsQuerty.namespace));
 		
 		
-		logoutput.write(JSON.stringify(response) + "\n");
+		logoutput.write("QResponse:"+response.toString("hex") + "\n");
 		server.send(response,remote.port,remote.address);
 		console.log("\n");
 		console.log("IN PUT:"+message.toString('hex'));
@@ -92,7 +93,8 @@ var LoggerThing(code,fn){
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 /* File: OBJ\Query.json */
-var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[]};
+var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,auth:false,authdata:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[],namespace:[]};
+
 /* File: OBJ\qtype.json */
 var DNSqtype = {1:'A',2:'NS',3:'MD',4:'MF',5:'CNAME',6:'SOA',7:'MB',8:'MG',9:'MR',10:'NULL',11:'WKS',12:'PTR',13:'HINFO',14:'MINFO',15:'MX',16:'TXT',255:'*'};
 var DNSqclass = {1:'IN'};
@@ -232,7 +234,7 @@ var Boolean2Number = function(input){
 //	*                                                                                                                      *
 //	*      8bit     8bit                                                                                                   *
 //	*    AAAAAAAA AAAAAAAA                                                                                                 *
-//	*    BCCCCDEF GHHHIIII                                                                                                 *
+//	*    BCCCCDEF GHNOIIII                                                                                                 *
 //	*    JJJJJJJJ JJJJJJJJ                                                                                                 *
 //	*    KKKKKKKK KKKKKKKK                                                                                                 *
 //	*    LLLLLLLL LLLLLLLL                                                                                                 *
@@ -247,6 +249,8 @@ var Boolean2Number = function(input){
 //	*    F = BOOL     Recursion Desired                                                                                    *
 //	*    G = BOOL     Recursion Avaliable                                                                                  *
 //	*    H = ZERO     nothing. really                                                                                      *
+//	*    N = BOOL     Answer authenticated (wireshark says that, idk)                                                      *
+//	*    O = BOOL     Authentication Data (Again Wireshark)                                                                *
 //	*    I = INT4     Response Code                                                                                        *
 //	*    J = INT16    Amount of Questions                                                                                  *
 //	*    K = INT16    Amount of Answers                                                                                    *
@@ -302,23 +306,24 @@ function Buffer2DnsQuery(req){
     var tmpByte;
 
 // Build Header
-    query.header.id = Buffer2Number(req.slice(0,2));    // AAAAAAAA
+    query.header.id = Buffer2Number(req.slice(0,2));    // AAAAAAAA AAAAAAAA
 
     tmpSlice = req.slice(2,3);    // BCCCCDEF
-    tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);
-    
+    tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);    
     query.header.qr = sliceBits(tmpByte, 0,1)?true:false;    // B
     query.header.opcode = sliceBits(tmpByte, 1,4);    // CCCC
     query.header.aa = sliceBits(tmpByte, 5,1)?true:false;    // D
     query.header.tc = sliceBits(tmpByte, 6,1)?true:false;    // E
     query.header.rd = sliceBits(tmpByte, 7,1)?true:false;    // F
 
-    tmpSlice = req.slice(3,4); // GHHHIIII
-    tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);
-    
-    query.header.ra = sliceBits(tmpByte, 0,1)?true:false; // G
-    query.header.z = sliceBits(tmpByte, 1,3); // HHH
+    tmpSlice = req.slice(3,4); // GHNOIIII
+    tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);    
+    query.header.ra		= sliceBits(tmpByte, 0,1)?true:false; // G
+    query.header.z		= sliceBits(tmpByte, 1,1); // H
+    query.header.auth	= sliceBits(tmpByte, 2,1)?true:false; // N
+    query.header.authdata = sliceBits(tmpByte, 3,1)?true:false; // O
     query.header.rcode = sliceBits(tmpByte, 4,4); // IIII
+	
     query.header.qdcount = Buffer2Number(req.slice(4,6)); // JJJJJJJJ JJJJJJJJ
     query.header.ancount = Buffer2Number(req.slice(6,8)); // KKKKKKKK KKKKKKKK
     query.header.nscount = Buffer2Number(req.slice(8,10)); // LLLLLLLL LLLLLLLL
@@ -347,25 +352,55 @@ function Buffer2DnsQuery(req){
     for(var a=0;a<amount;a++){
 		lastposition=position;
 		query.answer[a]={};
-		query.answer[a].name = "";	// something wrong here TODO: discover it.
-        query.answer[a].code = req.slice(lastposition, position+2);
+        query.answer[a].code = Buffer2Number(req.slice(lastposition, position+2));
         query.answer[a].qtype = Buffer2Number(req.slice(lastposition+2, position+4));
         query.answer[a].qclass = Buffer2Number(req.slice(lastposition+4, position+6));
         query.answer[a].TTL = Buffer2Number(req.slice(lastposition+6, position+10));
         var size = Buffer2Number(req.slice(lastposition+10, position+12));
-		AnswerData = req.slice(lastposition+12,position+12+size); // remember the position, redarted!
+		var AnswerData = req.slice(lastposition+12,position+12+size); // remember the position, redarted!
 		position=(position+12+size);
-		if(query.answer[a].qtype == 1){
-			query.answer[a].data = ""+AnswerData[0]+"."+AnswerData[1]+"."+AnswerData[2]+"."+AnswerData[3]+"";
+		switch(query.answer[a].qtype){
+			case  1:	/*IPv4 */		query.answer[a].data = ""+AnswerData[0]+"."+AnswerData[1]+"."+AnswerData[2]+"."+AnswerData[3]+"";break;
+			case  5:	/*CNAME*/		query.answer[a].data = qname2name(AnswerData);break;
+			case 12:	/* PTR */		query.answer[a].data = qname2name(AnswerData);break;
+			default:	/* IDK */		query.answer[a].data = AnswerData;break;
 		}
 	}
 	
+// Gathering Answers / Authoritative nameservers
+// TODO: URL HERE
+    var amount = query.header.nscount;
+    for(var a=0;a<amount;a++){
+		lastposition=position;
+		query.namespace[a]={};
+        query.namespace[a].code = Buffer2Number(req.slice(lastposition, position+2));
+        query.namespace[a].qtype = Buffer2Number(req.slice(lastposition+2, position+4));
+        query.namespace[a].qclass = Buffer2Number(req.slice(lastposition+4, position+6));
+        query.namespace[a].TTL = Buffer2Number(req.slice(lastposition+6, position+10));
+        var size = Buffer2Number(req.slice(lastposition+10, position+12));
+		AnswerData = req.slice(lastposition+12,position+12+size-20); // remember the position, redarted! i failed 
+		position=(position+12+size-20);
+		
+        query.namespace[a].serialCode = Buffer2Number(req.slice(position, position+4));
+        query.namespace[a].RefreshInterval = Buffer2Number(req.slice(position+4, position+8));
+        query.namespace[a].RetryInterval = Buffer2Number(req.slice(position+8, position+12));
+        query.namespace[a].Expiration = Buffer2Number(req.slice(position+12, position+16));
+        query.namespace[a].minimunTTL = Buffer2Number(req.slice(position+16, position+20));
+
+		switch(query.namespace[a].qtype){
+			case  1:	/*IPv4 */		query.namespace[a].data = ""+AnswerData[0]+"."+AnswerData[1]+"."+AnswerData[2]+"."+AnswerData[3]+"";break;
+			case  5:	/*CNAME*/		query.namespace[a].data = qname2name(AnswerData);break;
+			case 12:	/* PTR */		query.namespace[a].data = qname2name(AnswerData);break;
+			default:	/* IDK */		query.namespace[a].data = AnswerData;
+		}
+	}
+
 	// i do not wanna do the rest, why? i have no intent to use those.
 	// if any of you wizards in training want to do the rest, you guys are welcome.
 	// remember to build the credits of those involved. :D
 	
     return lastquery = query;
 }
-//some test captured from sniffer
-// Buffer2DnsQuery(Buffer.from([0x3d,0xe5,0x81,0x80,0x00,0x01,0x00,0x04,0x00,0x00,0x00,0x00,0x03,0x77,0x77,0x77,0x0f,0x6d,0x73,0x66,0x74,0x63,0x6f,0x6e,0x6e,0x65,0x63,0x74,0x74,0x65,0x73,0x74,0x03,0x63,0x6f,0x6d,0x00,0x00,0x01,0x00,0x01,0xc0,0x0c,0x00,0x05,0x00,0x01,0x00,0x00,0x0c,0x10,0x00,0x13,0x06,0x76,0x34,0x6e,0x63,0x73,0x69,0x06,0x6d,0x73,0x65,0x64,0x67,0x65,0x03,0x6e,0x65,0x74,0x00,0xc0,0x35,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x0a,0x00,0x19,0x04,0x6e,0x63,0x73,0x69,0x08,0x34,0x2d,0x63,0x2d,0x30,0x30,0x30,0x33,0x08,0x63,0x2d,0x6d,0x73,0x65,0x64,0x67,0x65,0xc0,0x43,0xc0,0x54,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x0a,0x00,0x02,0xc0,0x59,0xc0,0x59,0x00,0x01,0x00,0x01,0x00,0x00,0x00,0x20,0x00,0x04,0x0d,0x6b,0x04,0x34]));
-// Buffer2DnsQuery(Buffer.from([0x91,0x6d,0x81,0x80,0x00,0x01,0x00,0x05,0x00,0x00,0x00,0x00,0x06,0x63,0x6c,0x69,0x65,0x6e,0x74,0x03,0x77,0x6e,0x73,0x07,0x77,0x69,0x6e,0x64,0x6f,0x77,0x73,0x03,0x63,0x6f,0x6d,0x00,0x00,0x01,0x00,0x01,0xc0,0x0c,0x00,0x05,0x00,0x01,0x00,0x00,0x0a,0xa4,0x00,0x23,0x03,0x77,0x6e,0x73,0x06,0x6e,0x6f,0x74,0x69,0x66,0x79,0x07,0x77,0x69,0x6e,0x64,0x6f,0x77,0x73,0x03,0x63,0x6f,0x6d,0x06,0x61,0x6b,0x61,0x64,0x6e,0x73,0x03,0x6e,0x65,0x74,0x00,0xc0,0x34,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x26,0x00,0x0c,0x09,0x61,0x6d,0x65,0x72,0x69,0x63,0x61,0x73,0x31,0xc0,0x38,0xc0,0x63,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x29,0x00,0x06,0x03,0x62,0x6e,0x32,0xc0,0x34,0xc0,0x7b,0x00,0x05,0x00,0x01,0x00,0x00,0x00,0x2a,0x00,0x0b,0x08,0x62,0x6e,0x32,0x77,0x6e,0x73,0x31,0x62,0xc0,0x13,0xc0,0x8d,0x00,0x01,0x00,0x01,0x00,0x00,0x01,0x95,0x00,0x04,0x41,0x34,0x6c,0xfe]));
+// var testmsg = Buffer.from([0xbb,0x63,0x81,0x80,0x01,0x00,0x08,0x00,0x00,0x00,0x00,0x00,0x03,0x74,0x6d,0x73,0x08,0x74,0x72,0x75,0x6f,0x70,0x74,0x69,0x6b,0x03,0x63,0x6f,0x6d,0x00,0x01,0x00,0x01,0x00,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x6e,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x86,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x7f,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc0,0xf1,0x8f,0x43,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x50,0xa4,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x4b,0x8d,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x92,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xbc,0x68]);
+
+// Buffer2DnsQuery(testmsg)
