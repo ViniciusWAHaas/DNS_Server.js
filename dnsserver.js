@@ -1,6 +1,3 @@
-//me has no idea where i am now, me need instructions.
-// intended do be a server and client to DNS queries. receive from a server and forward as a client to another server.
-// save the queries for furute use. you know.
 
 const dgram = require('dgram');
 const server = dgram.createSocket('udp4');
@@ -23,17 +20,23 @@ server.on('listening', function () {
 lastquery = {};
 
 server.on('message', function (message, remote) {
-	UDPTemporarynamething(message,function(response){
+	new UDPTemporarynamething(message,function(response){
 			
 		console.log("\n####################");
 		// console.log(Buffer.from(message));
-		var DnsQuery = new Buffer2DnsQuery(message);
-		logoutput.write(JSON.stringify(DnsQuery) + "\n");
-		
-		console.log("header: \t"+JSON.stringify(DnsQuery.header));
-		console.log("question:\t"+JSON.stringify(DnsQuery.question));
-		console.log("answers:\t"+JSON.stringify(DnsQuery.answer));
-		console.log("answers2:\t"+JSON.stringify(DnsQuery.namespace));
+		(function(){
+			var DnsQuery = Buffer2DnsQuery(message);
+			logoutput.write(JSON.stringify(DnsQuery) + "\n");
+			
+			console.log("header: \t"+JSON.stringify(DnsQuery.header));
+			console.log("question:\t"+JSON.stringify(DnsQuery.question));
+			console.log("answers:");
+			DnsQuery.answer.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
+			console.log("answers:");
+			DnsQuery.namespace.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
+			if(DnsQuery.extraData)
+				console.log("Extra:"+DnsQuery.extraData);
+		})();
 		
 		/*
 		var answer=[];
@@ -46,14 +49,20 @@ server.on('message', function (message, remote) {
 		*/		
         //server.send(response, remote.port, remote.address);
 		
-		var DnsQuerty = new Buffer2DnsQuery(response);
+		(function(){
+		var DnsQuerty = Buffer2DnsQuery(response);
 	    logoutput.write(JSON.stringify(DnsQuerty) + "\n");
 		
 		console.log("####################");
 		console.log("header: \t"+JSON.stringify(DnsQuerty.header));
 		console.log("question:\t"+JSON.stringify(DnsQuerty.question));
-		console.log("answers:\t"+JSON.stringify(DnsQuerty.answer));
-		console.log("answers2:\t"+JSON.stringify(DnsQuerty.namespace));
+		console.log("answers:");
+		DnsQuerty.answer.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
+		console.log("answers:");
+		DnsQuerty.namespace.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
+		if(DnsQuerty.extraData)
+			console.log("Extra:"+DnsQuerty.extraData);
+		})();
 		
 		
 		logoutput.write("QResponse:"+response.toString("hex") + "\n");
@@ -92,12 +101,14 @@ var LoggerThing(code,fn){
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
-/* File: OBJ\Query.json */
+/* File: OBJ\DNSQuery.json */
 var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,auth:false,authdata:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[],namespace:[]};
 
-/* File: OBJ\qtype.json */
-var DNSqtype = {1:'A',2:'NS',3:'MD',4:'MF',5:'CNAME',6:'SOA',7:'MB',8:'MG',9:'MR',10:'NULL',11:'WKS',12:'PTR',13:'HINFO',14:'MINFO',15:'MX',16:'TXT',255:'*'};
-var DNSqclass = {1:'IN'};
+/* File: OBJ\DNScode.json */
+var DNSqtype = {1:'A',2:'NS',3:'MD',4:'MF',5:'CNAME',6:'SOA',7:'MB',8:'MG',9:'MR',10:'NULL',11:'WKS',12:'PTR',13:'HINFO',14:'MINFO',15:'MX',16:'TXT',28:'AAAA',255:'*'};
+var DNSqclass = {1:'IN'};//,"undef":"CH"}; CH = chaos 
+var DNSopcode = {0:"NOERROR",1:"FORMERR",2:"SERVFAIL",3:"NXDOMAIN",4:"NOTIMP",5:"REFUSED",6:"YXDOMAIN",7:"YXRRSET",8:"NXRRSET",9:"NOTAUTH",10:"NOTZONE"};
+var DNSrpcode = {0:"NOERROR",1:"FORMERR"                          ,4:"NOTIMP",5:"REFUSED"                                                              ,11:"SSOPNOTIMP"};
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
@@ -281,8 +292,8 @@ var Boolean2Number = function(input){
 //	*                                                                                                                      *
 //	*    in the example there i put NOOOOOONOOONPQ order, why? look in the line below                                      *
 //	*                               .GOOGLE.COM.          did you notice? N is . (dot) and the next O chars to be show     *
-//	*    the first N is 0x06, means that the next bytes is chars which is OOOOOO                                           *
-//	*    then again is N with 0x03 saying the next OOO is chars.                                                           *
+//	*    the first N is 0x06, means that the next bytes is chars which is OOOOOO or GOOGLE                                 *
+//	*    then again is N with 0x03 saying the next OOO is chars. or COM                                                    *
 //	*    the last N contais 0x00. no next chars, OR end of the string to ask                                               *
 //	*    P and Q is just class and type of the N and O Bytes type.                                                         *
 //	\**********************************************************************************************************************/
@@ -296,7 +307,17 @@ function Buffer2DnsQuery(req){
         b = b >>> s;
         return b & ~(0xff << len);
     };
-    
+	var resolveDataThing = function(qtype,dataThing,extrapayloadthing){
+    	switch(qtype){
+			case  1:	/*IPv4 */		return ""+dataThing[0]+"."+dataThing[1]+"."+dataThing[2]+"."+dataThing[3]+"";break;
+			case  5:	/*CNAME*/		return qname2name(dataThing,extrapayloadthing);break;
+			case  6:	/* SOA */		return qname2name(dataThing,extrapayloadthing);break;	// special snowflake,multiple responses in a buffer create qnameSOA2String()
+			case 12:	/* PTR */		return qname2name(dataThing,extrapayloadthing);break;
+			default:	/* IDK */		return dataThing;break;
+		}
+		return dataThing;
+	}
+	
 
     var query = new Object(DNSQuery);
 
@@ -305,6 +326,8 @@ function Buffer2DnsQuery(req){
     var tmpSlice;
     var tmpByte;
 
+	query.header={};
+	
 // Build Header
     query.header.id = Buffer2Number(req.slice(0,2));    // AAAAAAAA AAAAAAAA
 
@@ -330,74 +353,72 @@ function Buffer2DnsQuery(req){
     query.header.arcount = Buffer2Number(req.slice(10, 12)); // MMMMMMMM MMMMMMMM
     
 // pointer to gather a range of buffer data 	
-    var lastposition=12
-    var position=lastposition;
+    var position=12;
 	
 // Gathering Questions
+	query.question=[];
     var amount = query.header.qdcount;
     for(var q=0;q<amount;q++){
-        lastposition=position;
-        query.question[q]={};
-        while(req[position++] != 0 && position < req.length);	// mark between the first N and the last N
-        query.question[q].name = qname2name( req.slice(lastposition, position) ); // Convert the info
-        query.question[q].qtype = Buffer2Number(req.slice(position, position+2));
-        query.question[q].type = DNSqtype[query.question[q].qtype];
-        query.question[q].qclass = Buffer2Number(req.slice(position+2, position+4));
-        position+=4;
+		if(req.length < position)break;
+        var lastposition=position;
+		
+		var question = new Object;
+		
+        while(req[position++] != 0 && position < req.length);	// mark between the first N and the last N		
+		question.code = qname2name( req.slice(lastposition, position) )
+		question.qtype = Buffer2Number(req.slice(position, position+=2))
+		question.qclass = Buffer2Number(req.slice(position, position+=2))
+		
+		query.question[q] = question;
     }
 	
-// Gathering Answers TODO: understando those ████ers. i dont get it and wasting my hobby time with this shiet
+// Gathering Answers TODO: understando those ████ers. i dont get it, and it is wasting my hobby time with this shiet
 // https://tools.ietf.org/html/rfc1035#section-4.1.3
+	query.answer=[];
     var amount = query.header.ancount;
     for(var a=0;a<amount;a++){
-		lastposition=position;
-		query.answer[a]={};
-        query.answer[a].code = Buffer2Number(req.slice(lastposition, position+2));
-        query.answer[a].qtype = Buffer2Number(req.slice(lastposition+2, position+4));
-        query.answer[a].qclass = Buffer2Number(req.slice(lastposition+4, position+6));
-        query.answer[a].TTL = Buffer2Number(req.slice(lastposition+6, position+10));
-        var size = Buffer2Number(req.slice(lastposition+10, position+12));
-		var AnswerData = req.slice(lastposition+12,position+12+size); // remember the position, redarted!
-		position=(position+12+size);
-		switch(query.answer[a].qtype){
-			case  1:	/*IPv4 */		query.answer[a].data = ""+AnswerData[0]+"."+AnswerData[1]+"."+AnswerData[2]+"."+AnswerData[3]+"";break;
-			case  5:	/*CNAME*/		query.answer[a].data = qname2name(AnswerData);break;
-			case 12:	/* PTR */		query.answer[a].data = qname2name(AnswerData);break;
-			default:	/* IDK */		query.answer[a].data = AnswerData;break;
-		}
+		if(req.length < position)break; // dies if overflow, unstable code protection or random bullshit
+		
+		var answer = new Object;
+		
+		answer.code = Buffer2Number(req.slice(position, position+=2));
+		answer.qtype = Buffer2Number(req.slice(position, position+=2));
+		answer.qclass = Buffer2Number(req.slice(position, position+=2));
+		answer.TTL = Buffer2Number(req.slice(position, position+=4));
+		answer.size = size = Buffer2Number(req.slice(position,position+=2));
+		answer.data = resolveDataThing(answer.qtype,req.slice(position,position+=size));
+
+		query.answer[a] = answer;
 	}
 	
 // Gathering Answers / Authoritative nameservers
 // TODO: URL HERE
+	query.namespace=[];
     var amount = query.header.nscount;
-    for(var a=0;a<amount;a++){
-		lastposition=position;
-		query.namespace[a]={};
-        query.namespace[a].code = Buffer2Number(req.slice(lastposition, position+2));
-        query.namespace[a].qtype = Buffer2Number(req.slice(lastposition+2, position+4));
-        query.namespace[a].qclass = Buffer2Number(req.slice(lastposition+4, position+6));
-        query.namespace[a].TTL = Buffer2Number(req.slice(lastposition+6, position+10));
-        var size = Buffer2Number(req.slice(lastposition+10, position+12));
-		AnswerData = req.slice(lastposition+12,position+12+size-20); // remember the position, redarted! i failed 
-		position=(position+12+size-20);
+    for(var n=0;n<amount;n++){
+		if(req.length < position)break;
 		
-        query.namespace[a].serialCode = Buffer2Number(req.slice(position, position+4));
-        query.namespace[a].RefreshInterval = Buffer2Number(req.slice(position+4, position+8));
-        query.namespace[a].RetryInterval = Buffer2Number(req.slice(position+8, position+12));
-        query.namespace[a].Expiration = Buffer2Number(req.slice(position+12, position+16));
-        query.namespace[a].minimunTTL = Buffer2Number(req.slice(position+16, position+20));
+		var namespace = new Object;
+		
+        namespace.code = Buffer2Number(req.slice(position, position+=2));
+        namespace.qtype = Buffer2Number(req.slice(position, position+=2));
+        namespace.qclass = Buffer2Number(req.slice(position, position+=2));
+        namespace.TTL = Buffer2Number(req.slice(position, position+=4));
+        namespace.size = Buffer2Number(req.slice(position, position+=2));
+		namespace.size-=20;
+		AnswerData = resolveDataThing(namespace.qtype,req.slice(position,position+=size)); // no need to remember position now. learned a easy way of doing it.
+		
+        namespace.serialCode = Buffer2Number(req.slice(position, position+=4));
+        namespace.RefreshInterval = Buffer2Number(req.slice(position, position+=4));
+        namespace.RetryInterval = Buffer2Number(req.slice(position, position+=4));
+        namespace.Expiration = Buffer2Number(req.slice(position, position+=4));
+        namespace.minimunTTL = Buffer2Number(req.slice(position, position+=4));
 
-		switch(query.namespace[a].qtype){
-			case  1:	/*IPv4 */		query.namespace[a].data = ""+AnswerData[0]+"."+AnswerData[1]+"."+AnswerData[2]+"."+AnswerData[3]+"";break;
-			case  5:	/*CNAME*/		query.namespace[a].data = qname2name(AnswerData);break;
-			case 12:	/* PTR */		query.namespace[a].data = qname2name(AnswerData);break;
-			default:	/* IDK */		query.namespace[a].data = AnswerData;
-		}
+		query.namespace[n] = namespace;
 	}
-
-	// i do not wanna do the rest, why? i have no intent to use those.
-	// if any of you wizards in training want to do the rest, you guys are welcome.
-	// remember to build the credits of those involved. :D
+	
+	// Aditional will be required
+	query.extraData = Buffer.from(req.slice(position, req.length));
 	
     return lastquery = query;
 }
