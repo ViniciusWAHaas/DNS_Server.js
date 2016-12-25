@@ -11,7 +11,7 @@ var PORT = 53;
 var HOST = '127.0.0.1';
 
 
-var logoutput = fs.createWriteStream("./writetext.json");
+var logoutput = fs.createWriteStream("./LOG_"+JSON.stringify(new Date()).replace(/[^0-9T]/g,"")+".json");
 
 server.on('listening', function () {
     var address = server.address();
@@ -34,8 +34,8 @@ server.on('message', function (message, remote) {
 			DnsQuery.answer.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
 			console.log("answers:");
 			DnsQuery.namespace.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
-			if(DnsQuery.extraData)
-				console.log("Extra:"+DnsQuery.extraData);
+			console.log("Extra:"+DnsQuery.extraData);
+			
 		})();
 		
 		/*
@@ -50,26 +50,28 @@ server.on('message', function (message, remote) {
         //server.send(response, remote.port, remote.address);
 		
 		(function(){
-		var DnsQuerty = Buffer2DnsQuery(response);
-	    logoutput.write(JSON.stringify(DnsQuerty) + "\n");
-		
-		console.log("####################");
-		console.log("header: \t"+JSON.stringify(DnsQuerty.header));
-		console.log("question:\t"+JSON.stringify(DnsQuerty.question));
-		console.log("answers:");
-		DnsQuerty.answer.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
-		console.log("answers:");
-		DnsQuerty.namespace.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
-		if(DnsQuerty.extraData)
+			
+			var DnsQuerty = Buffer2DnsQuery(response);
+			logoutput.write(JSON.stringify(DnsQuerty) + "\n");
+			
+			console.log("####################");
+			console.log("header: \t"+JSON.stringify(DnsQuerty.header));
+			console.log("question:\t"+JSON.stringify(DnsQuerty.question));
+			console.log("answers:");
+			DnsQuerty.answer.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
+			console.log("answers:");
+			DnsQuerty.namespace.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
 			console.log("Extra:"+DnsQuerty.extraData);
+			
 		})();
-		
-		
+			
+			
 		logoutput.write("QResponse:"+response.toString("hex") + "\n");
 		server.send(response,remote.port,remote.address);
 		console.log("\n");
 		console.log("IN PUT:"+message.toString('hex'));
 		console.log("OUTPUT:"+response.toString('hex'));
+			
 	});
 });
 
@@ -115,8 +117,6 @@ var DNSrpcode = {0:"NOERROR",1:"FORMERR"                          ,4:"NOTIMP",5:
 function DnsQuery2Buffer(DNSQuery){    
     var BufferContent = [];
     BufferContent[0]=0;
-
-	
     for(var a=0;a<BufferContent.length;a++)
 		if(BufferContent[a] >= 256)
 			return new Buffer(0);		
@@ -125,12 +125,15 @@ function DnsQuery2Buffer(DNSQuery){
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 // function qname2name(typeof Buffer){ return typeof String; }
-var qname2name = function(qname){
+var qname2name = function(qname,namefrom){
     var domain=new String();
     var position=0;
 
     while(qname[position] != 0 && position < qname.length)	// you guys have no idea how to get mad ( psychological speaking )
-        domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
+		if(position+qname[position] < qname.length)
+			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
+		else
+			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + namefrom.slice(namefrom.length-(position+qname[position]),namefrom.length) // + namefrom.slice(0-);
 
     return domain;
 };
@@ -307,17 +310,6 @@ function Buffer2DnsQuery(req){
         b = b >>> s;
         return b & ~(0xff << len);
     };
-	var resolveDataThing = function(qtype,dataThing,extrapayloadthing){
-    	switch(qtype){
-			case  1:	/*IPv4 */		return ""+dataThing[0]+"."+dataThing[1]+"."+dataThing[2]+"."+dataThing[3]+"";break;
-			case  5:	/*CNAME*/		return qname2name(dataThing,extrapayloadthing);break;
-			case  6:	/* SOA */		return qname2name(dataThing,extrapayloadthing);break;	// special snowflake,multiple responses in a buffer create qnameSOA2String()
-			case 12:	/* PTR */		return qname2name(dataThing,extrapayloadthing);break;
-			default:	/* IDK */		return dataThing;break;
-		}
-		return dataThing;
-	}
-	
 
     var query = new Object(DNSQuery);
 
@@ -355,6 +347,20 @@ function Buffer2DnsQuery(req){
 // pointer to gather a range of buffer data 	
     var position=12;
 	
+// Simple resolver to a human comprehension(?)
+	var resolveDataThing = function(qtype,dataThing,extrapayloadthing){
+    	switch(qtype){
+			case  1:	/*IPv4 */		return ""+dataThing[0]+"."+dataThing[1]+"."+dataThing[2]+"."+dataThing[3]+"";break;
+			case  5:	/*CNAME*/		return qname2name(dataThing,extrapayloadthing);break;
+			case  6:	/* SOA */		return qname2name(dataThing,extrapayloadthing);break;	// special snowflake,multiple responses in a buffer create qnameSOA2String()
+			case 12:	/* PTR */		return qname2name(dataThing,extrapayloadthing);break;
+			case 28:	/*IPv6 */		return (function(input){var output="";for(var ip=0;ip<16;ip++)output+=((ip+1)%2?";":"")+(input[ip]<10?"0":"")+input[ip].toString(16);return output.replace(";","");namefrom.length})(dataThing);
+			default:	/* IDK */		return dataThing;break;
+		}
+		return dataThing;
+	}
+	
+	
 // Gathering Questions
 	query.question=[];
     var amount = query.header.qdcount;
@@ -365,9 +371,11 @@ function Buffer2DnsQuery(req){
 		var question = new Object;
 		
         while(req[position++] != 0 && position < req.length);	// mark between the first N and the last N		
-		question.code = qname2name( req.slice(lastposition, position) )
+		question.data = resolveDataThing(5,req.slice(lastposition, position));
 		question.qtype = Buffer2Number(req.slice(position, position+=2))
 		question.qclass = Buffer2Number(req.slice(position, position+=2))
+
+//		question.data = resolveDataThing(question.qtype,code,"");
 		
 		query.question[q] = question;
     }
@@ -386,7 +394,7 @@ function Buffer2DnsQuery(req){
 		answer.qclass = Buffer2Number(req.slice(position, position+=2));
 		answer.TTL = Buffer2Number(req.slice(position, position+=4));
 		answer.size = size = Buffer2Number(req.slice(position,position+=2));
-		answer.data = resolveDataThing(answer.qtype,req.slice(position,position+=size));
+		answer.data = resolveDataThing(answer.qtype,req.slice(position,position+=size),question.data[0]);
 
 		query.answer[a] = answer;
 	}
@@ -406,7 +414,7 @@ function Buffer2DnsQuery(req){
         namespace.TTL = Buffer2Number(req.slice(position, position+=4));
         namespace.size = Buffer2Number(req.slice(position, position+=2));
 		namespace.size-=20;
-		AnswerData = resolveDataThing(namespace.qtype,req.slice(position,position+=size)); // no need to remember position now. learned a easy way of doing it.
+		namespace.data = resolveDataThing(namespace.qtype,req.slice(position,position+=size),question.code[0]); // no need to remember position now. learned a easy way of doing it.
 		
         namespace.serialCode = Buffer2Number(req.slice(position, position+=4));
         namespace.RefreshInterval = Buffer2Number(req.slice(position, position+=4));
@@ -418,7 +426,7 @@ function Buffer2DnsQuery(req){
 	}
 	
 	// Aditional will be required
-	query.extraData = Buffer.from(req.slice(position, req.length));
+	query.extraData = req.slice(position, req.length);
 	
     return lastquery = query;
 }
