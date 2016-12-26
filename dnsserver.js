@@ -11,7 +11,7 @@ var PORT = 53;
 var HOST = '127.0.0.1';
 
 
-var logoutput = fs.createWriteStream("./LOG_"+JSON.stringify(new Date()).replace(/[^0-9T]/g,"")+".json");
+var logoutput = fs.createWriteStream("./LOG/LOG_"+JSON.stringify(new Date()).replace(/[^0-9T]/g,"")+".json");
 
 server.on('listening', function () {
     var address = server.address();
@@ -106,11 +106,19 @@ var LoggerThing(code,fn){
 /* File: OBJ\DNSQuery.json */
 var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,auth:false,authdata:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[],namespace:[]};
 
-/* File: OBJ\DNScode.json */
+/* File: OBJ\DNScodes.json */
+
+//	http://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
+//  https://tools.ietf.org/html/rfc6895
 var DNSqtype = {1:'A',2:'NS',3:'MD',4:'MF',5:'CNAME',6:'SOA',7:'MB',8:'MG',9:'MR',10:'NULL',11:'WKS',12:'PTR',13:'HINFO',14:'MINFO',15:'MX',16:'TXT',28:'AAAA',255:'*'};
-var DNSqclass = {1:'IN'};//,"undef":"CH"}; CH = chaos 
-var DNSopcode = {0:"NOERROR",1:"FORMERR",2:"SERVFAIL",3:"NXDOMAIN",4:"NOTIMP",5:"REFUSED",6:"YXDOMAIN",7:"YXRRSET",8:"NXRRSET",9:"NOTAUTH",10:"NOTZONE"};
-var DNSrpcode = {0:"NOERROR",1:"FORMERR"                          ,4:"NOTIMP",5:"REFUSED"                                                              ,11:"SSOPNOTIMP"};
+
+var DNSqclass = {0:"Reserved",1:'IN',2:"CS",3:"CH",4:"HS",254:"NONE",255:"ANY"};
+var DNSqclassName = {0:"Reserved",1:'Internet',2:"CSNET",3:"Chaos",4:"Hesiod",254:"none",255:"*"};
+
+var DNSrpcode = {0:"NOERROR",1:"FORMERR",2:"SERVFAIL",3:"NXDOMAIN",4:"NOTIMP",5:"REFUSED",6:"YXDOMAIN",7:"YXRRSET",8:"NXRRSET",9:"NOTAUTH",10:"NOTZONE",11:"SSOPNOTIMP",16:"BADVERS",16:"BADSIG",17:"BADKEY",18:"BADTIME",19:"BADMODE",20:"BADNAME",21:"BADALG",22:"BADTRUNC",23:"BADCOOKIE"};
+var DNSrpcodeNames = {0:"No Error",1:"Format Error",2:"Server Failure",3:"Non-Existent Domain",4:"Not Implemented",5:"Query Refused",6:"Name Exists when it should not",7:"RR Set Exists when it should not",8:"RR Set that should exist does not",9:"Server Not Authoritative for zone",10:"Name not contained in zone",16:"Bad OPT Version",6:"TSIG Signature Failure",17:"Key not recognized",18:"Signature out of time window",19:"Bad TKEY Mode",20:"Duplicate key name",21:"Algorithm not supported",22:"Bad Truncation",23:"Bad/missing Server Cookie"};
+
+var DNSopcodeName = {0:"Query",1:"Inverse Query",2:"Status",4:"Notify",5:"Update"};
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
@@ -130,11 +138,16 @@ var qname2name = function(qname,namefrom){
     var position=0;
 
     while(qname[position] != 0 && position < qname.length)	// you guys have no idea how to get mad ( psychological speaking )
-		if(position+qname[position] < qname.length)
+		if(position+qname[position] < qname.length+1)
 			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
 		else
 			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + namefrom.slice(namefrom.length-(position+qname[position]),namefrom.length) // + namefrom.slice(0-);
 
+	if(domain.length < qname.length){
+		domain=[domain];
+		
+	}
+		
     return domain;
 };
 
@@ -256,7 +269,7 @@ var Boolean2Number = function(input){
 //	*    ######## ########                                                                                                 *
 //	*                                                                                                                      *
 //	*    A = INT16    Identification of the packet                                                                         *
-//	*    B = BOOL     Response                                                                                             *
+//	*    B = BOOL     Query OR Response                                                                                    *
 //	*    C = INT4     Question Code                                                                                        *
 //	*    D = BOOL     Authority                                                                                            *
 //	*    E = BOOL     Truncated                                                                                            *
@@ -273,9 +286,10 @@ var Boolean2Number = function(input){
 //	*    # = ????     Flexibe content depends on the J,K,L and M                                                           *
 //	*                                                                                                                      *
 //	*    details of more tecnical info here: https://tools.ietf.org/html/rfc1035#section-4.1.1                             *
+//	*    details of more tecnical info here: https://tools.ietf.org/html/rfc6895#section-2                                 *
 //	*                                                                                                                      *
 //	*                                                                                                                      *
-//	*    DNS Query Questions Package or Section where the questions is at.                                                 *
+//	*    DNS Query Questions (J variable) Package or Section where the questions is at.                                    *
 //	*    this place require explanation                                                                                    *
 //	*                                                                                                                      *
 //	*      8bit     8bit                                                                                                   *
@@ -293,12 +307,23 @@ var Boolean2Number = function(input){
 //	*    P = INT16    code of que requisition. 1 for A ( IPv4 ) , 5 for an alias ( Another name to search for ) , and others 256 codes possible
 //	*    Q = INT16    idk , why this exist. why? if this thing is not 1 ( ONE ) it is not INTERNET related request.        *
 //	*                                                                                                                      *
-//	*    in the example there i put NOOOOOONOOONPQ order, why? look in the line below                                      *
+//	*    in the example there i put NOOOOOONOOONPPQQ order, why? look in the line below                                    *
 //	*                               .GOOGLE.COM.          did you notice? N is . (dot) and the next O chars to be show     *
 //	*    the first N is 0x06, means that the next bytes is chars which is OOOOOO or GOOGLE                                 *
 //	*    then again is N with 0x03 saying the next OOO is chars. or COM                                                    *
-//	*    the last N contais 0x00. no next chars, OR end of the string to ask                                               *
+//	*    the last N contais 0x00. no next chars, or end of the string to ask|query                                         *
 //	*    P and Q is just class and type of the N and O Bytes type.                                                         *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	*    Vinicius Willer Alencar Haas 2016.12.26                                                                           *
+//	*    Build for learning purposes,and have a Personal DNS Server.                                                       *
 //	\**********************************************************************************************************************/
 
 lastquery = {};
@@ -394,7 +419,7 @@ function Buffer2DnsQuery(req){
 		answer.qclass = Buffer2Number(req.slice(position, position+=2));
 		answer.TTL = Buffer2Number(req.slice(position, position+=4));
 		answer.size = size = Buffer2Number(req.slice(position,position+=2));
-		answer.data = resolveDataThing(answer.qtype,req.slice(position,position+=size),question.data[0]);
+		answer.data = resolveDataThing(answer.qtype,req.slice(position,position+=size),query.question[0].data);
 
 		query.answer[a] = answer;
 	}
@@ -413,8 +438,7 @@ function Buffer2DnsQuery(req){
         namespace.qclass = Buffer2Number(req.slice(position, position+=2));
         namespace.TTL = Buffer2Number(req.slice(position, position+=4));
         namespace.size = Buffer2Number(req.slice(position, position+=2));
-		namespace.size-=20;
-		namespace.data = resolveDataThing(namespace.qtype,req.slice(position,position+=size),question.code[0]); // no need to remember position now. learned a easy way of doing it.
+		namespace.data = resolveDataThing(namespace.qtype,req.slice(position,position+=size),query.question[0].data); // no need to remember position now. learned a easy way of doing it.
 		
         namespace.serialCode = Buffer2Number(req.slice(position, position+=4));
         namespace.RefreshInterval = Buffer2Number(req.slice(position, position+=4));
