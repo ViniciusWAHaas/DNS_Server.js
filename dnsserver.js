@@ -1,4 +1,3 @@
-
 const dgram = require('dgram');
 const server = dgram.createSocket('udp4');
 const dns = require('dns');
@@ -21,13 +20,15 @@ lastquery = {};
 
 server.on('message', function (message, remote) {
 	new UDPTemporarynamething(message,function(response){
+		
+
 			
 		console.log("\n####################");
 		// console.log(Buffer.from(message));
 		(function(){
 			var DnsQuery = Buffer2DnsQuery(message);
 			logoutput.write(JSON.stringify(DnsQuery) + "\n");
-			
+
 			console.log("header: \t"+JSON.stringify(DnsQuery.header));
 			console.log("question:\t"+JSON.stringify(DnsQuery.question));
 			console.log("answers:");
@@ -35,7 +36,17 @@ server.on('message', function (message, remote) {
 			console.log("answers:");
 			DnsQuery.namespace.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
 			console.log("Extra:"+DnsQuery.extraData);
-			
+
+			if(DnsQuery.question[0].data){
+				var quick;
+				try{
+					quick=fs.createWriteStream("./RAW/"+JSON.stringify(new Date()).replace(/[^0-9T]/g,"")+"."+DnsQuery.question[0].data+"bin");
+					quick.write(response);
+				} catch(e){}
+				try{
+					quick.close();
+				}catch(e){}
+			}
 		})();
 		
 		/*
@@ -80,6 +91,7 @@ server.bind(PORT);//, HOST);
 
 var counterqueryidk=50000;
 var UDPTemporarynamething = function(messg,callback){
+	if(!callback) return;
 	// A Client for forwarding msg
     var client = dgram.createSocket('udp4');
 	
@@ -116,7 +128,7 @@ var DNSqclass = {0:"Reserved",1:'IN',2:"CS",3:"CH",4:"HS",254:"NONE",255:"ANY"};
 var DNSqclassName = {0:"Reserved",1:'Internet',2:"CSNET",3:"Chaos",4:"Hesiod",254:"none",255:"*"};
 
 var DNSrpcode = {0:"NOERROR",1:"FORMERR",2:"SERVFAIL",3:"NXDOMAIN",4:"NOTIMP",5:"REFUSED",6:"YXDOMAIN",7:"YXRRSET",8:"NXRRSET",9:"NOTAUTH",10:"NOTZONE",11:"SSOPNOTIMP",16:"BADVERS",16:"BADSIG",17:"BADKEY",18:"BADTIME",19:"BADMODE",20:"BADNAME",21:"BADALG",22:"BADTRUNC",23:"BADCOOKIE"};
-var DNSrpcodeNames = {0:"No Error",1:"Format Error",2:"Server Failure",3:"Non-Existent Domain",4:"Not Implemented",5:"Query Refused",6:"Name Exists when it should not",7:"RR Set Exists when it should not",8:"RR Set that should exist does not",9:"Server Not Authoritative for zone",10:"Name not contained in zone",16:"Bad OPT Version",6:"TSIG Signature Failure",17:"Key not recognized",18:"Signature out of time window",19:"Bad TKEY Mode",20:"Duplicate key name",21:"Algorithm not supported",22:"Bad Truncation",23:"Bad/missing Server Cookie"};
+var DNSrpcodeName = {0:"No Error",1:"Format Error",2:"Server Failure",3:"Non-Existent Domain",4:"Not Implemented",5:"Query Refused",6:"Name Exists when it should not",7:"RR Set Exists when it should not",8:"RR Set that should exist does not",9:"Server Not Authoritative for zone",10:"Name not contained in zone",16:"Bad OPT Version",6:"TSIG Signature Failure",17:"Key not recognized",18:"Signature out of time window",19:"Bad TKEY Mode",20:"Duplicate key name",21:"Algorithm not supported",22:"Bad Truncation",23:"Bad/missing Server Cookie"};
 
 var DNSopcodeName = {0:"Query",1:"Inverse Query",2:"Status",4:"Notify",5:"Update"};
 
@@ -137,18 +149,23 @@ var qname2name = function(qname,namefrom){
     var domain=new String();
     var position=0;
 
-    while(qname[position] != 0 && position < qname.length)	// you guys have no idea how to get mad ( psychological speaking )
-		if(position+qname[position] < qname.length+1)
+	while(qname[position] != 0 && position < qname.length)	// you guys have no idea how to get mad ( psychological speaking )
+		//if(position+qname[position] < qname.length+1)
 			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
-		else
-			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + namefrom.slice(namefrom.length-(position+qname[position]),namefrom.length) // + namefrom.slice(0-);
-
-	if(domain.length < qname.length){
-		domain=[domain];
+		//else
+			//domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + namefrom.slice(namefrom.length-(position+qname[position])-1,namefrom.length-1)
 		
+		
+	return domain;
+		
+		
+	if(position++ < qname.length){
+		domain
+		while(qname[position] != 0 && position < qname.length)	// you guys have no idea how to get mad ( psychological speaking )
+			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
+		return domain;
 	}
-		
-    return domain;
+	return domain;
 };
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
@@ -437,9 +454,8 @@ function Buffer2DnsQuery(req){
         namespace.qtype = Buffer2Number(req.slice(position, position+=2));
         namespace.qclass = Buffer2Number(req.slice(position, position+=2));
         namespace.TTL = Buffer2Number(req.slice(position, position+=4));
-        namespace.size = Buffer2Number(req.slice(position, position+=2));
-		namespace.data = resolveDataThing(namespace.qtype,req.slice(position,position+=size),query.question[0].data); // no need to remember position now. learned a easy way of doing it.
-		
+        namespace.size = size = Buffer2Number(req.slice(position, position+=2));
+		namespace.data = resolveDataThing(namespace.qtype,req.slice(position,position+=size-20),query.question[0].data); // no need to remember position now. learned a easy way of doing it.
         namespace.serialCode = Buffer2Number(req.slice(position, position+=4));
         namespace.RefreshInterval = Buffer2Number(req.slice(position, position+=4));
         namespace.RetryInterval = Buffer2Number(req.slice(position, position+=4));
@@ -454,6 +470,6 @@ function Buffer2DnsQuery(req){
 	
     return lastquery = query;
 }
-// var testmsg = Buffer.from([0xbb,0x63,0x81,0x80,0x01,0x00,0x08,0x00,0x00,0x00,0x00,0x00,0x03,0x74,0x6d,0x73,0x08,0x74,0x72,0x75,0x6f,0x70,0x74,0x69,0x6b,0x03,0x63,0x6f,0x6d,0x00,0x01,0x00,0x01,0x00,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x6e,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x86,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x7f,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc0,0xf1,0x8f,0x43,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x50,0xa4,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x4b,0x8d,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x92,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xbc,0x68]);
+//var testmsg = Buffer.from([0xbb,0x63,0x81,0x80,0x01,0x00,0x08,0x00,0x00,0x00,0x00,0x00,0x03,0x74,0x6d,0x73,0x08,0x74,0x72,0x75,0x6f,0x70,0x74,0x69,0x6b,0x03,0x63,0x6f,0x6d,0x00,0x01,0x00,0x01,0x00,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x6e,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x86,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x7f,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc0,0xf1,0x8f,0x43,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x50,0xa4,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x4b,0x8d,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x92,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xbc,0x68]);
 
-// Buffer2DnsQuery(testmsg)
+//console.log(Buffer2DnsQuery(testmsg));
