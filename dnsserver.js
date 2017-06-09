@@ -4,116 +4,226 @@ const dns = require('dns');
 const fs = require('fs');
 
 /* File: DNS\DNS_SRV_Daemon.js */
-// https://nodejs.org/api/dgram.html#dgram_socket_send_msg_offset_length_port_address_callback
+
+//	/**********************************************************************************************************************\
+//	* LOAD and SAVE System                                                                                                 *
+//	* LOAD fires when start this *.js                                                                                      *
+//	* SAVE fires when CTROL + C is pressed                                                                                 *
+//	\**********************************************************************************************************************/
+var DNS_SRV;
+try {
+	DNS_SRV = JSON.parse(fs.readFileSync('./DNS_Queries.json', {encoding: 'utf8'}));
+} catch (e) {
+	DNS_SRV = {};
+}
+process.stdin.setRawMode(true);
+process.stdin.on('data', function (key) {
+	console.log("Keypress:" + JSON.stringify(key));
+	for(var a=0;a<key.length;a++)
+		if (key[a] == 3) {	// Ctrol + C
+			console.log("Gracefully stop server");
+			server.close();
+			fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {encoding: 'utf8'});
+			process.stdin.setRawMode(false);
+			process.exit();
+		}
+		if (key[a] == 26 || key[a] == 19) { // Ctrol + Z
+			fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {encoding: 'utf8'});
+		}
+});
+//	/**********************************************************************************************************************\
+//	* local storage for previous queries                                                                                   *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	\**********************************************************************************************************************/
+
+//	/**********************************************************************************************************************\
+//	* DNS Server Listener                                                                                                  *
+//	* no need for introductions                                                                                            *
+//	* https://nodejs.org/api/dgram.html#dgram_socket_send_msg_offset_length_port_address_callback                          *
+//	\**********************************************************************************************************************/
 
 var PORT = 53;
 var HOST = '127.0.0.1';
 
-
-var logoutput = fs.createWriteStream("./LOG/LOG_"+JSON.stringify(new Date()).replace(/[^0-9T]/g,"")+".json");
+var logoutput = fs.createWriteStream("./LOG/LOG_" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + ".json");
 
 server.on('listening', function () {
-    var address = server.address();
-    console.log('UDP Server listening on ' + address.address + ":" + address.port);
+	var address = server.address();
+	console.log('UDP Server listening on ' + address.address + ":" + address.port);
 });
+
+
 lastquery = {};
 
 server.on('message', function (message, remote) {
-	new UDPTemporarynamething(message,function(response){
-		
+	//	message[]
+	try {
+		console.log(message);
+		var messager = new Buffer(message);
+		messager[2] += 0x80; // set response mode
+		messager[3] += 0x09; // set response code to server fault
+		server.send(message, remote.port, remote.address);
+		console.log(messager);
+		//im lazy fuck you
+	} catch (e) {
+		console.log(e);
+	}
+	var client = new UDPTemporarynamething(message, function (response) {
+			//			server.send(response, remote.port, remote.address);
 
-			
-		console.log("\n####################");
-		// console.log(Buffer.from(message));
-		(function(){
-			var DnsQuery = Buffer2DnsQuery(message);
-			logoutput.write(JSON.stringify(DnsQuery) + "\n");
+			console.log("\n####################");
+			// console.log(Buffer.from(message));
+			(function () {
+				var DnsQuery = Buffer2DnsQuery(message);
+				logoutput.write(JSON.stringify(DnsQuery) + "\n");
 
-			console.log("header: \t"+JSON.stringify(DnsQuery.header));
-			console.log("question:\t"+JSON.stringify(DnsQuery.question));
-			console.log("answers:");
-			DnsQuery.answer.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
-			console.log("answers:");
-			DnsQuery.namespace.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
-			console.log("Extra:"+DnsQuery.extraData);
+				console.log("header: \t" + JSON.stringify(DnsQuery.header));
+				console.log("question:\t" + JSON.stringify(DnsQuery.question));
+				console.log("answers:");
+				DnsQuery.answer.forEach((a) => {
+					console.log("\t\t" + JSON.stringify(a));
+				})
+				console.log("answers:");
+				DnsQuery.namespace.forEach((a) => {
+					console.log("\t\t" + JSON.stringify(a));
+				})
+				console.log("Extra:" + DnsQuery.extraData);
 
-			if(DnsQuery.question[0].data){
-				var quick;
-				try{
-					quick=fs.createWriteStream("./RAW/"+JSON.stringify(new Date()).replace(/[^0-9T]/g,"")+"."+DnsQuery.question[0].data+"bin");
-					quick.write(response);
-				} catch(e){}
-				try{
-					quick.close();
-				}catch(e){}
-			}
-		})();
-		
-		/*
-		var answer=[];
-		for(var a=0;DnsQuery.question.length;a++)
+				
+				//if(DnsQuery.question[0].data){
+				try {
+					var foldertree = DnsQuery.question[0].data.split(".").reverse();
+					var Directory = "./RAW";
+					for (var a = 0; a < foldertree.length; a++)
+						Directory += "/" + foldertree[a];
+					Directory += "/" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "");
+					if (DnsQuery.extraData.length > 1)
+						Directory += ".extradata";
+					Directory += ".bin";
+					Logger.saveThis(Directory, response);
+				} catch (e) {}
+				//			}
+
+				try {
+					dns.lookup(DnsQuery.question[0].data, function () {});
+				} catch (e) {}
+			})();
+
+			/*
+			var answer=[];
+			for(var a=0;DnsQuery.question.length;a++)
 			answer[a] = searchFunction(DnsQuery.question[a]);
-		//TODO remove repeated answers AKA remove redundancies(?).
-		
-		
-		var dasdf = DNSQuery2Buffer(DNSQuery);
-		*/		
-        //server.send(response, remote.port, remote.address);
-		
-		(function(){
-			
-			var DnsQuerty = Buffer2DnsQuery(response);
-			logoutput.write(JSON.stringify(DnsQuerty) + "\n");
-			
-			console.log("####################");
-			console.log("header: \t"+JSON.stringify(DnsQuerty.header));
-			console.log("question:\t"+JSON.stringify(DnsQuerty.question));
-			console.log("answers:");
-			DnsQuerty.answer.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
-			console.log("answers:");
-			DnsQuerty.namespace.forEach((a)=>{console.log("\t\t"+JSON.stringify(a));})
-			console.log("Extra:"+DnsQuerty.extraData);
-			
-		})();
-			
-			
-		logoutput.write("QResponse:"+response.toString("hex") + "\n");
-		server.send(response,remote.port,remote.address);
-		console.log("\n");
-		console.log("IN PUT:"+message.toString('hex'));
-		console.log("OUTPUT:"+response.toString('hex'));
-			
-	});
+			//TODO remove repeated answers AKA remove redundancies(?).
+
+			var dasdf = DNSQuery2Buffer(DNSQuery);
+			//server.send(response, remote.port, remote.address);
+			 */
+
+			(function () {
+				var DnsQuerty = Buffer2DnsQuery(response);
+				logoutput.write(JSON.stringify(DnsQuerty) + "\n");
+
+				console.log("####################");
+				console.log("header: \t" + JSON.stringify(DnsQuerty.header));
+				console.log("question:\t" + JSON.stringify(DnsQuerty.question));
+				console.log("answers:");
+				DnsQuerty.answer.forEach((a) => {
+					console.log("\t\t" + JSON.stringify(a));
+				})
+				console.log("answers:");
+				DnsQuerty.namespace.forEach((a) => {
+					console.log("\t\t" + JSON.stringify(a));
+				})
+				console.log("Extra:" + DnsQuerty.extraData);
+			})();
+
+			logoutput.write("QResponse:" + response.toString("hex") + "\n");
+			console.log("src:" + JSON.stringify(remote));
+			console.log("IN PUT:" + message.toString('hex'));
+			console.log("OUTPUT:" + response.toString('hex'));
+			console.log("datetime:" + JSON.stringify(new Date()).replace(/[^0-9T]/g, ""));
+			console.log("\n\n\n");
+
+			//console.log("dst:"+JSON.stringify(client));
+		}, function (err) {
+			if(!(err === "Timeout"))
+				console.log("Error:" + Buffer2DnsQuery(message).question + "|" + err);
+		});
 });
-
-
 server.bind(PORT);//, HOST);
 
+//	/**********************************************************************************************************************\
+//	* DNS Client                                                                                                           *
+//	* no need for introductions                                                                                            *
+//	* https://nodejs.org/api/dgram.html#dgram_socket_send_msg_offset_length_port_address_callback                          *
+//	\**********************************************************************************************************************/
 var counterqueryidk=50000;
-var UDPTemporarynamething = function(messg,callback){
+var UDPTemporarynamething = function(messg,callback,errorThis){
 	if(!callback) return;
+	if(!errorThis)
+		errorThis=function(){};
 	// A Client for forwarding msg
     var client = dgram.createSocket('udp4');
 	
 	client.on('listening', function(){console.log(JSON.stringify(client.address()))});
-	client.on('error', function(err){console.log(`server error:\n${err.stack}`);client.close();});
-    client.on('message',function (msg,remota){callback(msg);});
+	client.on('error', function(err){console.log(`server error:\n${err.stack}`);client.close();errorThis(err);});
+    client.on('message',callback);
     client.bind(++counterqueryidk,function(){
-		setTimeout(function(){client.close();client.removeAllListeners();},1000*30);
+		setTimeout(function(){client.close();client.removeAllListeners();errorThis("Timeout");},1000*30);
 		client.send(messg,53,'10.8.0.20');//,function(err,bytes){if(err)return;console.log("wot\t"+JSON.stringify(bytes));server.send(msg, remote.port, remote.address);});
 	});
 	if(counterqueryidk >= 60000)
 		counterqueryidk=50000;
+	return client;
 };
 
-/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
-/*
-var LoggerThingvars = [];
-var LoggerThing(code,fn){
-	LoggerThingvars[code]
-}
+//	/**********************************************************************************************************************\
+//	* A Logger   for stuff                                                                                                 *
+//	*                                                                                                                      *
+//	*                                                                                                                      *
+//	\**********************************************************************************************************************/
+	fs.mkdirTreeSync = function(path,lastfolder){
+		path = path.split('/');
+		lastpath=".";
+		for(var a=0;a<path.length-(lastfolder?0:1);a++){
+			try{fs.mkdirSync(lastpath=lastpath+"/"+path[a]);}catch(e){if(e.code != 'EEXIST')throw new Error(e);}
+		}
+		return;
+	}
 
-/*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
+var Logger = new Object();
+    Logger.folderoutput = function(){
+	var datetime = JSON.stringify(new Date()).replace(/[^0-9T]/g,"");
+	var LogFileOutput = "";
+	LogFileOutput+=    datetime.substr(0,4);
+	LogFileOutput+="/"+datetime.substr(4,2);
+	LogFileOutput+="/"+datetime.substr(6,2);
+	return [LogFileOutput,datetime];
+};
+    Logger.saveThis = function(directory,content){
+		fs.mkdirTreeSync(directory,false);
+		
+		var quick;
+		try{
+			quick=fs.createWriteStream(directory);
+		} catch(e){}
+		try{
+			quick.write(content);
+		} catch(e){}
+		try{
+			quick.close();
+		}catch(e){}
+	}
+
+
+//	/**********************************************************************************************************************\
+//	* DNS PACKET DEASSEMBLER                                                                                               *
+//	*                                                                                                                      *
+//	* under development , yet                                                                                              *
+//	\**********************************************************************************************************************/
+
+// TODO : Learn class 
 
 /* File: OBJ\DNSQuery.json */
 var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,auth:false,authdata:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[],namespace:[]};
@@ -137,6 +247,11 @@ var DNSopcodeName = {0:"Query",1:"Inverse Query",2:"Status",4:"Notify",5:"Update
 function DnsQuery2Buffer(DNSQuery){    
     var BufferContent = [];
     BufferContent[0]=0;
+	
+	
+	
+	
+	
     for(var a=0;a<BufferContent.length;a++)
 		if(BufferContent[a] >= 256)
 			return new Buffer(0);		
@@ -145,17 +260,21 @@ function DnsQuery2Buffer(DNSQuery){
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 // function qname2name(typeof Buffer){ return typeof String; }
-var qname2name = function(qname,namefrom){
+var qname2name = function(qname,namefrom){  // cdn.syndication.twimg.com. -> 
+	if(!namefrom)
+		namefrom="";
     var domain=new String();
     var position=0;
 
 	while(qname[position] != 0 && position < qname.length)	// you guys have no idea how to get mad ( psychological speaking )
-		//if(position+qname[position] < qname.length+1)
+		if(position+qname[position] < qname.length+1)
 			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
-		//else
-			//domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + namefrom.slice(namefrom.length-(position+qname[position])-1,namefrom.length-1)
-		
-		
+		else
+			break;
+	/*
+	
+	//domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + namefrom.slice(namefrom.length-(position+qname[position])-1,namefrom.length-1)
+	*/
 	return domain;
 		
 		
@@ -391,6 +510,8 @@ function Buffer2DnsQuery(req){
 	
 // Simple resolver to a human comprehension(?)
 	var resolveDataThing = function(qtype,dataThing,extrapayloadthing){
+		if(!extrapayloadthing)
+			extrapayloadthing = "";
     	switch(qtype){
 			case  1:	/*IPv4 */		return ""+dataThing[0]+"."+dataThing[1]+"."+dataThing[2]+"."+dataThing[3]+"";break;
 			case  5:	/*CNAME*/		return qname2name(dataThing,extrapayloadthing);break;
@@ -451,11 +572,12 @@ function Buffer2DnsQuery(req){
 		var namespace = new Object;
 		
         namespace.code = Buffer2Number(req.slice(position, position+=2));
-        namespace.qtype = Buffer2Number(req.slice(position, position+=2));
+        namespace.qtype = qtype = Buffer2Number(req.slice(position, position+=2));
         namespace.qclass = Buffer2Number(req.slice(position, position+=2));
         namespace.TTL = Buffer2Number(req.slice(position, position+=4));
         namespace.size = size = Buffer2Number(req.slice(position, position+=2));
-		namespace.data = resolveDataThing(namespace.qtype,req.slice(position,position+=size-20),query.question[0].data); // no need to remember position now. learned a easy way of doing it.
+		namespace.size+=-20;
+		namespace.data = resolveDataThing(qtype,req.slice(position,position+=size-20),query.question[0].data); // no need to remember position now. learned a easy way of doing it.
         namespace.serialCode = Buffer2Number(req.slice(position, position+=4));
         namespace.RefreshInterval = Buffer2Number(req.slice(position, position+=4));
         namespace.RetryInterval = Buffer2Number(req.slice(position, position+=4));
@@ -470,6 +592,3 @@ function Buffer2DnsQuery(req){
 	
     return lastquery = query;
 }
-//var testmsg = Buffer.from([0xbb,0x63,0x81,0x80,0x01,0x00,0x08,0x00,0x00,0x00,0x00,0x00,0x03,0x74,0x6d,0x73,0x08,0x74,0x72,0x75,0x6f,0x70,0x74,0x69,0x6b,0x03,0x63,0x6f,0x6d,0x00,0x01,0x00,0x01,0x00,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x6e,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x86,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x7f,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc0,0xf1,0x8f,0x43,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x50,0xa4,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x4b,0x8d,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x92,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xbc,0x68]);
-
-//console.log(Buffer2DnsQuery(testmsg));
