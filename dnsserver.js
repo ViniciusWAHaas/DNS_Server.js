@@ -5,7 +5,7 @@ const fs = require('fs');
 
 const logoutput = fs.createWriteStream("./LOG/LOG_" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + ".json");
 
-now = function(){return Math.pow(new Date(),1);}
+now = function(){return new Date().getTime();}
 
 console.leg = process.stdout.write;
 /* File: DNS\DNS_SRV_Daemon.js */
@@ -80,11 +80,11 @@ server.on('message', function (message, remote) {
 	//	message[]
 	var messager = new Buffer(message);
 	try {
-		console.log(message);
+		//		console.log(message);
 		messager[2] += 0x80; // set response mode
 		messager[3] += 0x0A; // set response code 0,1,2,3,4,5,9,10
 		server.send(message, remote.port, remote.address);
-		console.log(messager);
+		//		console.log(messager);
 		//im lazy fuck you
 	} catch (e) {
 		console.log(e);
@@ -92,120 +92,75 @@ server.on('message', function (message, remote) {
 	//The Real Deal
 	var client = new UDPTemporarynamething(message, function (response) {
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////			
-		console.log("\n" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + "  " + JSON.stringify(remote) );
-		console.log("1>"+ message.toString('hex'));
-		console.log("2>"+messager.toString('hex'));
-		console.log("3>"+response.toString('hex'));
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////			
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			console.log("\n" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + "  " + JSON.stringify(remote));
+			console.log("1>" + message.toString('hex'));
+			console.log("2>" + messager.toString('hex'));
+			console.log("3>" + response.toString('hex'));
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-			//			server.send(response, remote.port, remote.address);
-			// console.log(Buffer.from(message));
-			(function () {
-				var DnsQuery = Buffer2DnsQuery(message);
-				
-				var NamethisObj = GetDNameObject(DNSQuery.question[0].data);
-				
-				if(!NamethisObj["|"])
-					NamethisObj["|"] = new Object([]);
-				
-				
-				
-				logoutput.write(JSON.stringify(DnsQuery) + "\n");
-				console.log("header: \t" + JSON.stringify(DnsQuery.header));
-				console.log("question:\t" + JSON.stringify(DnsQuery.question));
-				console.log("answers:");
-				DnsQuery.answer.forEach((a) => {
-					console.log("\t\t" + JSON.stringify(a));
-				})
-				console.log("answers:");
-				DnsQuery.namespace.forEach((a) => {
-					console.log("\t\t" + JSON.stringify(a));
-				})
-				console.log("Extra:" + DnsQuery.extraData);
-				
-				//if(DnsQuery.question[0].data){
-				try {
-					var foldertree = DnsQuery.question[0].data.split(".").reverse();
-					var Directory = "./RAW";
-					for (var a = 0; a < foldertree.length; a++)
-						Directory += "/" + foldertree[a];
-					Directory += "/" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "");
-					if (DnsQuery.extraData.length > 1)
-						Directory += ".extradata";
-					Directory += ".bin";
-					Logger.saveThis(Directory, response);
-				} catch (e) {}
-				//			}
-
-				try {
-					dns.lookup(DnsQuery.question[0].data, function () {});
-				} catch (e) {}
-			})();
-
-			/*
-			var answer=[];
-			for(var a=0;DnsQuery.question.length;a++)
-			answer[a] = searchFunction(DnsQuery.question[a]);
-			//TODO remove repeated answers AKA remove redundancies(?).
-
-			var dasdf = DNSQuery2Buffer(DNSQuery);
 			//server.send(response, remote.port, remote.address);
-			 */
-			(function () {
-				var DnsQuerty = Buffer2DnsQuery(response);
-				logoutput.write(JSON.stringify(DnsQuerty) + "\n");
-				
-				var NamethisObj = GetDNameObject(DnsQuerty.question[0].data);
-				
-				if(!NamethisObj["|"])
-					NamethisObj["|"] = new Object([]);
-				
-				DnsQuerty.answer.forEach((a) => {
-					for(var i=0;i<NamethisObj["|"];i++)
-						if(NamethisObj["|"][i][0] == a.data){
-							NamethisObj["|"][i] = [a.data,a.size,a.qclass,a.qtype,now(),false];
-							return;
-						}
-					NamethisObj["|"].push([a.data,a.size,a.qclass,a.qtype,now()]);
-				});
-				DnsQuerty.namespace.forEach((a) => {
-					for(var i=0;i<NamethisObj["|"];i++)
-						if(NamethisObj["|"][i][0] == a.data){
-							NamethisObj["|"][i] = [a.data,a.size,a.qclass,a.qtype,now(),true];
-							return;
-						}
-					NamethisObj["|"].push([a.data,a.size,a.qclass,a.qtype,now()]);
-				});
-				
-				console.log("header: \t" + JSON.stringify(DnsQuerty.header));
-				console.log("question:\t" + JSON.stringify(DnsQuerty.question));
-				console.log("answers:");
-				DnsQuerty.answer.forEach((a) => {
-					console.log("\t\t" + JSON.stringify(a));
-				})
-				console.log("answers:");
-				DnsQuerty.namespace.forEach((a) => {
-					console.log("\t\t" + JSON.stringify(a));
-				})
-				console.log("Extra:" + DnsQuerty.extraData);
-			})();
 
-			console.log("src:" + JSON.stringify(remote));
-			console.log("IN PUT:" + message.toString('hex'));
-			console.log("OUTPUT:" + response.toString('hex'));
-			console.log("datetime:" + JSON.stringify(new Date()).replace(/[^0-9T]/g, ""));
-			console.log("\n\n\n");
+			var DNS_Packet_IN = Buffer2DnsQuery(message);
+			var DNS_Packet_OUT = Buffer2DnsQuery(response);
 
+			var NamethisObj = GetDNameObject(DNS_Packet_IN.question[0].data)["|"];
+			if (!NamethisObj)
+				NamethisObj = new Object([]);
+
+			console.log("Header_IN: \t" + JSON.stringify(DNS_Packet_IN.header));
+			console.log("Header_OUT:\t" + JSON.stringify(DNS_Packet_OUT.header));
+			console.log("Question_IN: \t" + JSON.stringify(DNS_Packet_IN.question));
+			console.log("Question_OUT: \t" + JSON.stringify(DNS_Packet_OUT.question));
+			console.log("Answers_IN:   ");
+			DNS_Packet_IN.answer.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
+			console.log("Answers_OUT:  ");
+			DNS_Packet_OUT.answer.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
+			console.log("NameSpace_IN: ");
+			DNS_Packet_IN.namespace.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
+			console.log("NameSpace_OUT:");
+			DNS_Packet_OUT.namespace.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
+			console.log("Extra_IN:    " + DNS_Packet_IN.extraData);
+			console.log("Extra_OUT:   " + DNS_Packet_OUT.extraData);
+
+			try {
+				var foldertree = DNS_Packet_IN.question[0].data.split(".").reverse();
+				var Directory = "./RAW";
+				for (var a = 0; a < foldertree.length; a++)
+					Directory += "/" + foldertree[a];
+				Directory += "/" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "");
+				if (DNS_Packet_IN.extraData.length > 1)
+					Directory += ".extradata";
+				Directory += ".bin";
+				Logger.saveThis(Directory, response);
+			} catch (e) {}
+
+			try {dns.lookup(DNS_Packet_IN.question[0].data, function () {});} catch (e) {}
+
+			DNS_Packet_OUT.answer.forEach((a) => {
+				for (var i = 0; i < NamethisObj; i++)
+					if (NamethisObj[i][0] == a.data) {
+						NamethisObj[i] = [a.data, a.size, a.qclass, a.qtype, now(), null];
+						return;
+					}
+				NamethisObj.push([a.data, a.size, a.qclass, a.qtype, now(), null]);
+			});
+
+			DNS_Packet_OUT.namespace.forEach((a) => {
+				for (var i = 0; i < NamethisObj; i++)
+					if (NamethisObj[i][0] == a.data) {
+						NamethisObj[i] = [a.data, a.size, a.qclass, a.qtype, now(), a.serialCode];
+						return;
+					}
+				NamethisObj.push([a.data, a.size, a.qclass, a.qtype, now(), a.serialCode]);
+			});
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		}, function (err) {
-			if(!(err === "Timeout"))
+			if (!(err === "Timeout"))
 				console.log("Error:" + Buffer2DnsQuery(message).question + "|" + err);
 		});
 });
-server.bind(PORT);//, HOST);
-
-
+server.bind(PORT); //, HOST);
 
 
 
@@ -224,7 +179,7 @@ var UDPTemporarynamething = function(messg,callback,errorThis){
 	// A Client for forwarding msg
     var client = dgram.createSocket('udp4');
 	
-	client.on('listening', function(){console.log(JSON.stringify(client.address()))});
+//	client.on('listening', function(){console.log(JSON.stringify(client.address()))});
 	client.on('error', function(err){console.log(`server error:\n${err.stack}`);client.close();errorThis(err);});
     client.on('message',callback);
     client.bind(++counterqueryidk,function(){
@@ -520,7 +475,6 @@ var Boolean2Number = function(input){
 //	*    Build for learning purposes,and have a Personal DNS Server.                                                       *
 //	\**********************************************************************************************************************/
 
-lastquery = {};
 function Buffer2DnsQuery(req){    
     var sliceBits = function(b, off, len) {
         if(!len) len = off+1;
@@ -530,7 +484,7 @@ function Buffer2DnsQuery(req){
         return b & ~(0xff << len);
     };
 
-    var query = new Object(DNSQuery);
+    var query = new Object(); //DNSQuery
 
     query.raw=req.toString("hex");
     
@@ -581,7 +535,7 @@ function Buffer2DnsQuery(req){
 		return dataThing;
 	}
 	
-	
+
 // Gathering Questions
 	query.question=[];
     var amount = query.header.qdcount;
@@ -648,7 +602,7 @@ function Buffer2DnsQuery(req){
 	// Aditional will be required
 	query.extraData = req.slice(position, req.length);
 	
-    return lastquery = query;
+    return query;
 }
 //var testmsg = Buffer.from([0xbb,0x63,0x81,0x80,0x01,0x00,0x08,0x00,0x00,0x00,0x00,0x00,0x03,0x74,0x6d,0x73,0x08,0x74,0x72,0x75,0x6f,0x70,0x74,0x69,0x6b,0x03,0x63,0x6f,0x6d,0x00,0x01,0x00,0x01,0x00,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x6e,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x86,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x7f,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc0,0xf1,0x8f,0x43,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x50,0xa4,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x4b,0x8d,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x92,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xbc,0x68]);
 
