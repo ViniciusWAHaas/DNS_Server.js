@@ -3,23 +3,29 @@ const server = dgram.createSocket('udp4');
 const dns = require('dns');
 const fs = require('fs');
 
+const logoutput = fs.createWriteStream("./LOG/LOG_" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + ".json");
+
+now = function(){return Math.pow(new Date(),1);}
+
+console.leg = process.stdout.write;
 /* File: DNS\DNS_SRV_Daemon.js */
 
 //	/**********************************************************************************************************************\
 //	* LOAD and SAVE System                                                                                                 *
 //	* LOAD fires when start this *.js                                                                                      *
-//	* SAVE fires when CTROL + C is pressed                                                                                 *
+//	* SAVE fires when CTROL + Z or S is pressed                                                                            *
+//	* SAVE and QUIT fires when CTROL + C is pressed                                                                        *
 //	\**********************************************************************************************************************/
 var DNS_SRV;
 try {
 	DNS_SRV = JSON.parse(fs.readFileSync('./DNS_Queries.json', {encoding: 'utf8'}));
 } catch (e) {
-	DNS_SRV = {};
+	DNS_SRV = new Object();
 }
 process.stdin.setRawMode(true);
 process.stdin.on('data', function (key) {
 	console.log("Keypress:" + JSON.stringify(key));
-	for(var a=0;a<key.length;a++)
+	for(var a=0;a<key.length;a++){
 		if (key[a] == 3) {	// Ctrol + C
 			console.log("Gracefully stop server");
 			server.close();
@@ -29,13 +35,28 @@ process.stdin.on('data', function (key) {
 		}
 		if (key[a] == 26 || key[a] == 19) { // Ctrol + Z
 			fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {encoding: 'utf8'});
+			console.log("'DNS_Queries.json' Saved!");
 		}
+	}
 });
 //	/**********************************************************************************************************************\
 //	* local storage for previous queries                                                                                   *
 //	*                                                                                                                      *
 //	*                                                                                                                      *
 //	\**********************************************************************************************************************/
+if (!DNS_SRV.CACHE)
+	DNS_SRV.CACHE = new Object();
+
+function GetDNameObject(Dname) {
+	var DnameTree = Dname.split(".").reverse();
+	var cachelevel = DNS_SRV.CACHE;
+	for (var a = 1; a < DnameTree.length; a++)
+		if(!cachelevel[DnameTree[a]])
+			cachelevel = cachelevel[DnameTree[a]] = new Object();
+		else
+			cachelevel = cachelevel[DnameTree[a]];
+	return cachelevel;
+}
 
 //	/**********************************************************************************************************************\
 //	* DNS Server Listener                                                                                                  *
@@ -46,7 +67,6 @@ process.stdin.on('data', function (key) {
 var PORT = 53;
 var HOST = '127.0.0.1';
 
-var logoutput = fs.createWriteStream("./LOG/LOG_" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + ".json");
 
 server.on('listening', function () {
 	var address = server.address();
@@ -58,26 +78,40 @@ lastquery = {};
 
 server.on('message', function (message, remote) {
 	//	message[]
+	var messager = new Buffer(message);
 	try {
 		console.log(message);
-		var messager = new Buffer(message);
 		messager[2] += 0x80; // set response mode
-		messager[3] += 0x09; // set response code to server fault
+		messager[3] += 0x0A; // set response code 0,1,2,3,4,5,9,10
 		server.send(message, remote.port, remote.address);
 		console.log(messager);
 		//im lazy fuck you
 	} catch (e) {
 		console.log(e);
 	}
+	//The Real Deal
 	var client = new UDPTemporarynamething(message, function (response) {
-			//			server.send(response, remote.port, remote.address);
 
-			console.log("\n####################");
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////			
+		console.log("\n" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + "  " + JSON.stringify(remote) );
+		console.log("1>"+ message.toString('hex'));
+		console.log("2>"+messager.toString('hex'));
+		console.log("3>"+response.toString('hex'));
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////			
+
+			//			server.send(response, remote.port, remote.address);
 			// console.log(Buffer.from(message));
 			(function () {
 				var DnsQuery = Buffer2DnsQuery(message);
+				
+				var NamethisObj = GetDNameObject(DNSQuery.question[0].data);
+				
+				if(!NamethisObj["|"])
+					NamethisObj["|"] = new Object([]);
+				
+				
+				
 				logoutput.write(JSON.stringify(DnsQuery) + "\n");
-
 				console.log("header: \t" + JSON.stringify(DnsQuery.header));
 				console.log("question:\t" + JSON.stringify(DnsQuery.question));
 				console.log("answers:");
@@ -89,7 +123,6 @@ server.on('message', function (message, remote) {
 					console.log("\t\t" + JSON.stringify(a));
 				})
 				console.log("Extra:" + DnsQuery.extraData);
-
 				
 				//if(DnsQuery.question[0].data){
 				try {
@@ -119,12 +152,32 @@ server.on('message', function (message, remote) {
 			var dasdf = DNSQuery2Buffer(DNSQuery);
 			//server.send(response, remote.port, remote.address);
 			 */
-
 			(function () {
 				var DnsQuerty = Buffer2DnsQuery(response);
 				logoutput.write(JSON.stringify(DnsQuerty) + "\n");
-
-				console.log("####################");
+				
+				var NamethisObj = GetDNameObject(DnsQuerty.question[0].data);
+				
+				if(!NamethisObj["|"])
+					NamethisObj["|"] = new Object([]);
+				
+				DnsQuerty.answer.forEach((a) => {
+					for(var i=0;i<NamethisObj["|"];i++)
+						if(NamethisObj["|"][i][0] == a.data){
+							NamethisObj["|"][i] = [a.data,a.size,a.qclass,a.qtype,now(),false];
+							return;
+						}
+					NamethisObj["|"].push([a.data,a.size,a.qclass,a.qtype,now()]);
+				});
+				DnsQuerty.namespace.forEach((a) => {
+					for(var i=0;i<NamethisObj["|"];i++)
+						if(NamethisObj["|"][i][0] == a.data){
+							NamethisObj["|"][i] = [a.data,a.size,a.qclass,a.qtype,now(),true];
+							return;
+						}
+					NamethisObj["|"].push([a.data,a.size,a.qclass,a.qtype,now()]);
+				});
+				
 				console.log("header: \t" + JSON.stringify(DnsQuerty.header));
 				console.log("question:\t" + JSON.stringify(DnsQuerty.question));
 				console.log("answers:");
@@ -138,20 +191,25 @@ server.on('message', function (message, remote) {
 				console.log("Extra:" + DnsQuerty.extraData);
 			})();
 
-			logoutput.write("QResponse:" + response.toString("hex") + "\n");
 			console.log("src:" + JSON.stringify(remote));
 			console.log("IN PUT:" + message.toString('hex'));
 			console.log("OUTPUT:" + response.toString('hex'));
 			console.log("datetime:" + JSON.stringify(new Date()).replace(/[^0-9T]/g, ""));
 			console.log("\n\n\n");
 
-			//console.log("dst:"+JSON.stringify(client));
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		}, function (err) {
 			if(!(err === "Timeout"))
 				console.log("Error:" + Buffer2DnsQuery(message).question + "|" + err);
 		});
 });
 server.bind(PORT);//, HOST);
+
+
+
+
+
+
 
 //	/**********************************************************************************************************************\
 //	* DNS Client                                                                                                           *
@@ -528,7 +586,7 @@ function Buffer2DnsQuery(req){
 	query.question=[];
     var amount = query.header.qdcount;
     for(var q=0;q<amount;q++){
-		if(req.length < position)break;
+		if(req.length < position)break; // dies if overflow, unstable code protection or random bullshit
         var lastposition=position;
 		
 		var question = new Object;
@@ -567,7 +625,7 @@ function Buffer2DnsQuery(req){
 	query.namespace=[];
     var amount = query.header.nscount;
     for(var n=0;n<amount;n++){
-		if(req.length < position)break;
+		if(req.length < position)break; // dies if overflow, unstable code protection or random bullshit
 		
 		var namespace = new Object;
 		
@@ -592,3 +650,6 @@ function Buffer2DnsQuery(req){
 	
     return lastquery = query;
 }
+//var testmsg = Buffer.from([0xbb,0x63,0x81,0x80,0x01,0x00,0x08,0x00,0x00,0x00,0x00,0x00,0x03,0x74,0x6d,0x73,0x08,0x74,0x72,0x75,0x6f,0x70,0x74,0x69,0x6b,0x03,0x63,0x6f,0x6d,0x00,0x01,0x00,0x01,0x00,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x6e,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x86,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x7f,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc0,0xf1,0x8f,0x43,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x50,0xa4,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x4b,0x8d,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x92,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xbc,0x68]);
+
+//console.log(Buffer2DnsQuery(testmsg));
