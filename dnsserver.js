@@ -3,12 +3,18 @@ const server = dgram.createSocket('udp4');
 const dns = require('dns');
 const fs = require('fs');
 
+fs.mkdirTreeSync = function(path,lastfolder){
+		path = path.split('/');
+		lastpath=".";
+		for(var a=0;a<path.length-(lastfolder?0:1);a++){
+			try{fs.mkdirSync(lastpath=lastpath+"/"+path[a]);}catch(e){if(e.code != 'EEXIST')throw new Error(e);}
+		}
+		return;
+	}
+
 const logoutput = fs.createWriteStream("./LOG/LOG_" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + ".json");
 
-now = function(){return new Date().getTime();}
-
-console.leg = process.stdout.write;
-/* File: DNS\DNS_SRV_Daemon.js */
+const now = function(){return (new Date).getTime();}
 
 //	/**********************************************************************************************************************\
 //	* LOAD and SAVE System                                                                                                 *
@@ -17,14 +23,9 @@ console.leg = process.stdout.write;
 //	* SAVE and QUIT fires when CTROL + C is pressed                                                                        *
 //	\**********************************************************************************************************************/
 var DNS_SRV;
-try {
-	DNS_SRV = JSON.parse(fs.readFileSync('./DNS_Queries.json', {encoding: 'utf8'}));
-} catch (e) {
-	DNS_SRV = new Object();
-}
+DNS_SRV = JSON.parse(fs.readFileSync('./DNS_Queries.json', {encoding: 'utf8'}));
 process.stdin.setRawMode(true);
 process.stdin.on('data', function (key) {
-	console.log("Keypress:" + JSON.stringify(key));
 	for(var a=0;a<key.length;a++){
 		if (key[a] == 3) {	// Ctrol + C
 			console.log("Gracefully stop server");
@@ -77,7 +78,6 @@ server.on('listening', function () {
 lastquery = {};
 
 server.on('message', function (message, remote) {
-	//	message[]
 	var messager = new Buffer(message);
 	try {
 		//		console.log(message);
@@ -86,21 +86,16 @@ server.on('message', function (message, remote) {
 		server.send(message, remote.port, remote.address);
 		//		console.log(messager);
 		//im lazy fuck you
-	} catch (e) {
-		console.log(e);
-	}
+	} catch (e) {console.log(e);}
 	//The Real Deal
 	var client = new UDPTemporarynamething(message, function (response) {
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			console.log("\n" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + "  " + JSON.stringify(remote));
 			console.log("1>" + message.toString('hex'));
 			console.log("2>" + messager.toString('hex'));
 			console.log("3>" + response.toString('hex'));
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 			//server.send(response, remote.port, remote.address);
-
 			var DNS_Packet_IN = Buffer2DnsQuery(message);
 			var DNS_Packet_OUT = Buffer2DnsQuery(response);
 
@@ -110,16 +105,20 @@ server.on('message', function (message, remote) {
 
 			console.log("Header_IN: \t" + JSON.stringify(DNS_Packet_IN.header));
 			console.log("Header_OUT:\t" + JSON.stringify(DNS_Packet_OUT.header));
+			
 			console.log("Question_IN: \t" + JSON.stringify(DNS_Packet_IN.question));
 			console.log("Question_OUT: \t" + JSON.stringify(DNS_Packet_OUT.question));
+			
 			console.log("Answers_IN:   ");
 			DNS_Packet_IN.answer.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
 			console.log("Answers_OUT:  ");
 			DNS_Packet_OUT.answer.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
+			
 			console.log("NameSpace_IN: ");
 			DNS_Packet_IN.namespace.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
 			console.log("NameSpace_OUT:");
 			DNS_Packet_OUT.namespace.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
+			
 			console.log("Extra_IN:    " + DNS_Packet_IN.extraData);
 			console.log("Extra_OUT:   " + DNS_Packet_OUT.extraData);
 
@@ -140,10 +139,10 @@ server.on('message', function (message, remote) {
 			DNS_Packet_OUT.answer.forEach((a) => {
 				for (var i = 0; i < NamethisObj; i++)
 					if (NamethisObj[i][0] == a.data) {
-						NamethisObj[i] = [a.data, a.size, a.qclass, a.qtype, now(), null];
+						NamethisObj[i] = [a.data, a.size, a.qclass, a.qtype, now()];
 						return;
 					}
-				NamethisObj.push([a.data, a.size, a.qclass, a.qtype, now(), null]);
+				NamethisObj.push([a.data, a.size, a.qclass, a.qtype, now()]);
 			});
 
 			DNS_Packet_OUT.namespace.forEach((a) => {
@@ -161,10 +160,6 @@ server.on('message', function (message, remote) {
 		});
 });
 server.bind(PORT); //, HOST);
-
-
-
-
 
 //	/**********************************************************************************************************************\
 //	* DNS Client                                                                                                           *
@@ -196,15 +191,6 @@ var UDPTemporarynamething = function(messg,callback,errorThis){
 //	*                                                                                                                      *
 //	*                                                                                                                      *
 //	\**********************************************************************************************************************/
-	fs.mkdirTreeSync = function(path,lastfolder){
-		path = path.split('/');
-		lastpath=".";
-		for(var a=0;a<path.length-(lastfolder?0:1);a++){
-			try{fs.mkdirSync(lastpath=lastpath+"/"+path[a]);}catch(e){if(e.code != 'EEXIST')throw new Error(e);}
-		}
-		return;
-	}
-
 var Logger = new Object();
     Logger.folderoutput = function(){
 	var datetime = JSON.stringify(new Date()).replace(/[^0-9T]/g,"");
@@ -239,12 +225,14 @@ var Logger = new Object();
 // TODO : Learn class 
 
 /* File: OBJ\DNSQuery.json */
-var DNSQuery = {raw: new Buffer([]),header:{id:0,qr:false,opcode:0,aa:false,tc:false,rd:false,ra:false,auth:false,authdata:false,z:0,rcode:0,qdcount:0,ancount:0,nscount:0,arcount:0},question:[],answer:[],namespace:[]};
+class DNSQuery {constructor() {this.raw= new Buffer([]);this.header= {id: 0,qr: false,opcode: 0,aa: false,tc: false,rd: false,ra: false,auth: false,authdata: false,z: 0,rcode: 0,qdcount: 0,ancount: 0,nscount: 0,arcount: 0};this.question= [];this.answer= [];this.namespace= [];}toString() {}print() {};};
+// usage:   var variablenome = ( new DNSQuery ) 
 
 /* File: OBJ\DNScodes.json */
 
 //	http://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
 //  https://tools.ietf.org/html/rfc6895
+
 var DNSqtype = {1:'A',2:'NS',3:'MD',4:'MF',5:'CNAME',6:'SOA',7:'MB',8:'MG',9:'MR',10:'NULL',11:'WKS',12:'PTR',13:'HINFO',14:'MINFO',15:'MX',16:'TXT',28:'AAAA',255:'*'};
 
 var DNSqclass = {0:"Reserved",1:'IN',2:"CS",3:"CH",4:"HS",254:"NONE",255:"ANY"};
@@ -256,45 +244,95 @@ var DNSrpcodeName = {0:"No Error",1:"Format Error",2:"Server Failure",3:"Non-Exi
 var DNSopcodeName = {0:"Query",1:"Inverse Query",2:"Status",4:"Notify",5:"Update"};
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
+/*
+Quick Lab to bullshit.
 
-function DnsQuery2Buffer(DNSQuery){    
-    var BufferContent = [];
-    BufferContent[0]=0;
+> 1 << 0
+1
+> 1 << 7
+128
+> 1 << 7
+128
+> 0xff00
+65280
+> 0xff00 >> 8
+255
+> 0xff00 >> 8 << 8
+65280
+> 0xfff0 >> 8 << 8
+65280
+> 0xfff0
+65520
+> 0xfff0 >> 8 << 8
+65280
+> 0xff00
+65280
+
+quicklab seems to realocate all bits from place , those outsite are thrown away, interesting
+*/
+function DnsQuery2Buffer(DNSQuery) {
+	var BufferContent = [];
+	BufferContent[0] = 0;
+
+	BufferContent[0] = DNSQuery.header.id >> 8 << 8; // AAAA AAAA ---- ----
+	BufferContent[1] = DNSQuery.header.id - BufferContent[0] << 8; // ---- ---- AAAA AAAA
+
+	BufferContent[2] = (DNSQuery.header.qr ? 1 : 0) << 7; // B--- ----
+	BufferContent[2] += DNSQuery.header.opcode << 3; // -CCC C---
+	BufferContent[2] += (DNSQuery.header.aa ? 1 : 0) << 2; // ---- -D--
+	BufferContent[2] += (DNSQuery.header.tc ? 1 : 0) << 1; // ---- --E-
+	BufferContent[2] += (DNSQuery.header.ta ? 1 : 0) << 0; // ---- ---F
+
+	BufferContent[3] = (DNSQuery.header.ra ? 1 : 0) << 0; // G--- ----
+	BufferContent[3] += (DNSQuery.header.z ? 1 : 0) << 0; // -H-- ----
+	BufferContent[3] += (DNSQuery.header.auth ? 1 : 0) << 0; // --N- ----
+	BufferContent[3] += (DNSQuery.header.authdata ? 1 : 0) << 0; // ---O ----
+	BufferContent[3] += DNSQuery.header.rcode; // ---- IIII
+
+	BufferContent[4] = DNSQuery.header.qdcount >> 8 << 8; // JJJJ JJJJ ---- ----
+	BufferContent[5] = DNSQuery.header.qdcount - BufferContent[4] << 8; // ---- ---- JJJJ JJJJ
+
+	BufferContent[6] = DNSQuery.header.ancount >> 8 << 8; // AAAA AAAA ---- ----
+	BufferContent[7] = DNSQuery.header.ancount - BufferContent[6] << 8; // ---- ---- AAAA AAAA
+
+	BufferContent[8] = DNSQuery.header.nscount >> 8 << 8; // AAAA AAAA ---- ----
+	BufferContent[9] = DNSQuery.header.nscount - BufferContent[8] << 8; // ---- ---- AAAA AAAA
+
+	BufferContent[10] = DNSQuery.header.arcount >> 8 << 8; // AAAA AAAA ---- ----
+	BufferContent[11] = DNSQuery.header.arcount - BufferContent[10] << 8; // ---- ---- AAAA AAAA
+
+	DNSQuery.question
+	DNSQuery.answer
+	DNSQuery.namespace
 	
 	
-	
-	
-	
-    for(var a=0;a<BufferContent.length;a++)
-		if(BufferContent[a] >= 256)
-			return new Buffer(0);		
-    return Buffer.from(BufferContent);
+	for (var a = 0; a < BufferContent.length; a++)
+		if (BufferContent[a] >= 256)
+			throw new Error("Something Hapenned while DnsQuery2Buffer():");
+	return Buffer.from(BufferContent);
 }
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 // function qname2name(typeof Buffer){ return typeof String; }
-var qname2name = function(qname,namefrom){  // cdn.syndication.twimg.com. -> 
-	if(!namefrom)
-		namefrom="";
-    var domain=new String();
-    var position=0;
-
-	while(qname[position] != 0 && position < qname.length)	// you guys have no idea how to get mad ( psychological speaking )
-		if(position+qname[position] < qname.length+1)
-			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
+var qname2name = function (qname, namefrom) { // cdn.syndication.twimg.com. ->
+	if (!namefrom)
+		namefrom = "";
+	var domain = new String();
+	var position = 0;
+	while (qname[position] != 0 && position < qname.length) // you guys have no idea how to get mad ( psychological speaking )
+		if (position + qname[position] < qname.length + 1)
+			domain = domain + qname.toString('utf8').substring(position + 1, position += qname[position] + 1) + '.';
 		else
 			break;
 	/*
-	
+
 	//domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + namefrom.slice(namefrom.length-(position+qname[position])-1,namefrom.length-1)
-	*/
+	 */
 	return domain;
-		
-		
-	if(position++ < qname.length){
-		domain
-		while(qname[position] != 0 && position < qname.length)	// you guys have no idea how to get mad ( psychological speaking )
-			domain=domain + qname.toString('utf8').substring(position+1,position+=qname[position]+1) + '.';
+
+	if (position++ < qname.length) {
+		while (qname[position] != 0 && position < qname.length); // you guys have no idea how to get mad ( psychological speaking )
+		domain = domain + qname.toString('utf8').substring(position + 1, position += qname[position] + 1) + '.';
 		return domain;
 	}
 	return domain;
@@ -303,32 +341,32 @@ var qname2name = function(qname,namefrom){  // cdn.syndication.twimg.com. ->
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 // function name2qname(typeof String){ return typeof String; }
-var name2qname = function(domain) {
-    var tokens = domain.split(".");
-    var qname = [];
-    var offset = 0;
-    for(var i=0; i<tokens.length;i++) {
-        qname[offset++]=tokens[i].length;
-        for(var j=0;j<tokens[i].length;j++) {
-            qname[offset++] = tokens[i].charCodeAt(j);
-        }
-    }
-    qname[offset] = 0;
-    
-    return Buffer.from(qname);
+var name2qname = function (domain) {
+	var tokens = domain.split(".");
+	var qname = [];
+	var offset = 0;
+	for (var i = 0; i < tokens.length; i++) {
+		qname[offset++] = tokens[i].length;
+		for (var j = 0; j < tokens[i].length; j++) {
+			qname[offset++] = tokens[i].charCodeAt(j);
+		}
+	}
+	qname[offset] = 0;
+
+	return Buffer.from(qname);
 };
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 // function Buffer2Number(typeof Buffer){ return typeof Number }
-var Buffer2Number = function(input){
-    input = input.reverse();
-    var output=0;
-    for(var a=input.length;a>0;a--){
-        output+=input[a]<<(8*(a));
-    }
-    output+=input[0];
-    return output;
+var Buffer2Number = function (input) {
+	input = input.reverse();
+	var output = 0;
+	for (var a = input.length; a > 0; a--) {
+		output += input[a] << (8 * (a));
+	}
+	output += input[0];
+	return output;
 }
 // Buffer2Number(Buffer.from([0x00,0x00]));
 // Buffer2Number(Buffer.from([0x00,0x01]));
@@ -345,14 +383,14 @@ var Buffer2Number = function(input){
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 // function Number2Buffer(typeof Number){ return typeof Buffer }
-var Number2Buffer = function(input,BufSize){
-    var output=new Buffer(BufSize);
-    output
-    for(var a=input.length;a>0;a--){
-        output+=input[a]<<(8*(a));
-    }
-    output+=input[0];
-    return output;
+var Number2Buffer = function (input, BufSize) {
+	var output = new Buffer(BufSize);
+	output
+	for (var a = input.length; a > 0; a--) {
+		output += input[a] << (8 * (a));
+	}
+	output += input[0];
+	return output;
 }
 
 // takes every INT8 in Buffer and convert to Number
@@ -360,45 +398,42 @@ var Number2Buffer = function(input,BufSize){
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 // function Number2Boolean(typeof Number){ return typeof Array[typeof Boolean, ... , typeof Boolean] }
-var Number2Boolean = function(input,valueA,valueB){
-    if(typeof input != 'number')
-        return [];
-    var output = [];
-    var multiplier=0;
-    
-    while(1<<multiplier++ < input)
-        output[multiplier-1]= (typeof valueA!= "undefined"?valueA:false);
-    
-    while(--multiplier>=0){
-        if(input >= 1<<multiplier){
-            input -= 1<<multiplier;
-            output[multiplier] = (typeof valueB!= "undefined"?valueB:true);
-        }
-    }
-    return output;
+var Number2Boolean = function (input, valueA, valueB) {
+	if (typeof input != 'number')
+		return [];
+	var output = [];
+	var multiplier = 0;
+	while (1 << multiplier++ < input)
+		output[multiplier - 1] = (typeof valueA != "undefined" ? valueA : false);
+	while (--multiplier >= 0) {
+		if (input >= 1 << multiplier) {
+			input -= 1 << multiplier;
+			output[multiplier] = (typeof valueB != "undefined" ? valueB : true);
+		}
+	}
+	return output;
 }
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 
 // function Boolean2Number(typeof Array[typeof Boolean, ... , typeof Boolean]){ return typeof Number }
-var Boolean2Number = function(input){
-    if(typeof input != "object")
-        return NaN;
-    var output = 0;
-    var multiplier=0;
-    
-    while(typeof input[multiplier] != 'undefined'){
-        if(input[multiplier])output+=1<<multiplier;
-        ++multiplier;
-    }
-    
-    while(--multiplier>=0){
-        if(input >= 1<<multiplier){
-            input -= 1<<multiplier;
-            output[multiplier] = (typeof valueB!= "undefined"?valueB:true);
-        }
-    }
-    return output;
+var Boolean2Number = function (input) {
+	if (typeof input != "object")
+		return NaN;
+	var output = 0;
+	var multiplier = 0;
+	while (typeof input[multiplier] != 'undefined') {
+		if (input[multiplier])
+			output += 1 << multiplier;
+		++multiplier;
+	}
+	while (--multiplier >= 0) {
+		if (input >= 1 << multiplier) {
+			input -= 1 << multiplier;
+			output[multiplier] = (typeof valueB != "undefined" ? valueB : true);
+		}
+	}
+	return output;
 }
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
@@ -475,135 +510,142 @@ var Boolean2Number = function(input){
 //	*    Build for learning purposes,and have a Personal DNS Server.                                                       *
 //	\**********************************************************************************************************************/
 
-function Buffer2DnsQuery(req){    
-    var sliceBits = function(b, off, len) {
-        if(!len) len = off+1;
-        var s = 7 - (off + len - 1);
+function Buffer2DnsQuery(req) {
+	var sliceBits = function (b, off, len) {
+		if (!len)
+			len = off + 1;
+		var s = 7 - (off + len - 1);
 
-        b = b >>> s;
-        return b & ~(0xff << len);
-    };
+		b = b >>> s;
+		return b & ~(0xff << len);
+	};
 
-    var query = new Object(); //DNSQuery
+	var query = new DNSQuery;
 
-    query.raw=req.toString("hex");
-    
-    var tmpSlice;
-    var tmpByte;
+	query.raw = req.toString("hex");
 
-	query.header={};
-	
-// Build Header
-    query.header.id = Buffer2Number(req.slice(0,2));    // AAAAAAAA AAAAAAAA
+	var tmpSlice;
+	var tmpByte;
 
-    tmpSlice = req.slice(2,3);    // BCCCCDEF
-    tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);    
-    query.header.qr = sliceBits(tmpByte, 0,1)?true:false;    // B
-    query.header.opcode = sliceBits(tmpByte, 1,4);    // CCCC
-    query.header.aa = sliceBits(tmpByte, 5,1)?true:false;    // D
-    query.header.tc = sliceBits(tmpByte, 6,1)?true:false;    // E
-    query.header.rd = sliceBits(tmpByte, 7,1)?true:false;    // F
+	query.header = {};
 
-    tmpSlice = req.slice(3,4); // GHNOIIII
-    tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);    
-    query.header.ra		= sliceBits(tmpByte, 0,1)?true:false; // G
-    query.header.z		= sliceBits(tmpByte, 1,1); // H
-    query.header.auth	= sliceBits(tmpByte, 2,1)?true:false; // N
-    query.header.authdata = sliceBits(tmpByte, 3,1)?true:false; // O
-    query.header.rcode = sliceBits(tmpByte, 4,4); // IIII
-	
-    query.header.qdcount = Buffer2Number(req.slice(4,6)); // JJJJJJJJ JJJJJJJJ
-    query.header.ancount = Buffer2Number(req.slice(6,8)); // KKKKKKKK KKKKKKKK
-    query.header.nscount = Buffer2Number(req.slice(8,10)); // LLLLLLLL LLLLLLLL
-    query.header.arcount = Buffer2Number(req.slice(10, 12)); // MMMMMMMM MMMMMMMM
-    
-// pointer to gather a range of buffer data 	
-    var position=12;
-	
-// Simple resolver to a human comprehension(?)
-	var resolveDataThing = function(qtype,dataThing,extrapayloadthing){
-		if(!extrapayloadthing)
+	// Build Header
+	query.header.id = Buffer2Number(req.slice(0, 2)); // AAAAAAAA AAAAAAAA
+
+	tmpSlice = req.slice(2, 3); // BCCCCDEF
+	tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);
+	query.header.qr = sliceBits(tmpByte, 0, 1) ? true : false; // B
+	query.header.opcode = sliceBits(tmpByte, 1, 4); // CCCC
+	query.header.aa = sliceBits(tmpByte, 5, 1) ? true : false; // D
+	query.header.tc = sliceBits(tmpByte, 6, 1) ? true : false; // E
+	query.header.rd = sliceBits(tmpByte, 7, 1) ? true : false; // F
+
+	tmpSlice = req.slice(3, 4); // GHNOIIII
+	tmpByte = tmpSlice.toString('binary', 0, 1).charCodeAt(0);
+	query.header.ra = sliceBits(tmpByte, 0, 1) ? true : false; // G
+	query.header.z = sliceBits(tmpByte, 1, 1); // H
+	query.header.auth = sliceBits(tmpByte, 2, 1) ? true : false; // N
+	query.header.authdata = sliceBits(tmpByte, 3, 1) ? true : false; // O
+	query.header.rcode = sliceBits(tmpByte, 4, 4); // IIII
+
+	query.header.qdcount = Buffer2Number(req.slice(4, 6)); // JJJJJJJJ JJJJJJJJ
+	query.header.ancount = Buffer2Number(req.slice(6, 8)); // KKKKKKKK KKKKKKKK
+	query.header.nscount = Buffer2Number(req.slice(8, 10)); // LLLLLLLL LLLLLLLL
+	query.header.arcount = Buffer2Number(req.slice(10, 12)); // MMMMMMMM MMMMMMMM
+
+	// pointer to gather a range of buffer data
+	var position = 12;
+
+	// Simple resolver to a human comprehension(?)
+	var resolveDataThing = function (qtype, dataThing, extrapayloadthing) {
+		if (!extrapayloadthing)
 			extrapayloadthing = "";
-    	switch(qtype){
-			case  1:	/*IPv4 */		return ""+dataThing[0]+"."+dataThing[1]+"."+dataThing[2]+"."+dataThing[3]+"";break;
-			case  5:	/*CNAME*/		return qname2name(dataThing,extrapayloadthing);break;
-			case  6:	/* SOA */		return qname2name(dataThing,extrapayloadthing);break;	// special snowflake,multiple responses in a buffer create qnameSOA2String()
-			case 12:	/* PTR */		return qname2name(dataThing,extrapayloadthing);break;
-			case 28:	/*IPv6 */		return (function(input){var output="";for(var ip=0;ip<16;ip++)output+=((ip+1)%2?";":"")+(input[ip]<10?"0":"")+input[ip].toString(16);return output.replace(";","");namefrom.length})(dataThing);
-			default:	/* IDK */		return dataThing;break;
+		switch (qtype) {
+		case 1: /*IPv4 */ return "" + dataThing[0] + "." + dataThing[1] + "." + dataThing[2] + "." + dataThing[3] + "";
+			break;
+		case 5: /*CNAME*/ return qname2name(dataThing, extrapayloadthing);
+			break;
+		case 6: /* SOA */ return qname2name(dataThing, extrapayloadthing);
+			break; // special snowflake,multiple responses in a buffer create qnameSOA2String()
+		case 12: /* PTR */ return qname2name(dataThing, extrapayloadthing);
+			break;
+		case 28: /*IPv6 */ return (function (input) {
+				var output = "";
+				for (var ip = 0; ip < 16; ip++)
+					output += ((ip + 1) % 2 ? ";" : "") + (input[ip] < 10 ? "0" : "") + input[ip].toString(16);
+				return output.replace(";", "");
+				namefrom.length
+			})(dataThing);
+		default: /* IDK */ return dataThing;
+			break;
 		}
 		return dataThing;
 	}
-	
 
-// Gathering Questions
-	query.question=[];
-    var amount = query.header.qdcount;
-    for(var q=0;q<amount;q++){
-		if(req.length < position)break; // dies if overflow, unstable code protection or random bullshit
-        var lastposition=position;
-		
+	// Gathering Questions
+	query.question = [];
+	var amount = query.header.qdcount;
+	for (var q = 0; q < amount; q++) {
+		if (req.length < position)
+			break; // dies if overflow, unstable code protection or random bullshit
+		var lastposition = position;
+
 		var question = new Object;
-		
-        while(req[position++] != 0 && position < req.length);	// mark between the first N and the last N		
-		question.data = resolveDataThing(5,req.slice(lastposition, position));
-		question.qtype = Buffer2Number(req.slice(position, position+=2))
-		question.qclass = Buffer2Number(req.slice(position, position+=2))
+		while (req[position++] != 0 && position < req.length); // mark between the first N and the last N
+		question.data = resolveDataThing(5, req.slice(lastposition, position));
+		question.qtype = Buffer2Number(req.slice(position, position += 2));
+		question.qclass = Buffer2Number(req.slice(position, position += 2));
 
-//		question.data = resolveDataThing(question.qtype,code,"");
-		
 		query.question[q] = question;
-    }
-	
-// Gathering Answers TODO: understando those ████ers. i dont get it, and it is wasting my hobby time with this shiet
-// https://tools.ietf.org/html/rfc1035#section-4.1.3
-	query.answer=[];
-    var amount = query.header.ancount;
-    for(var a=0;a<amount;a++){
-		if(req.length < position)break; // dies if overflow, unstable code protection or random bullshit
-		
+	}
+	// Gathering Answers TODO: understando those ████ers. i dont get it, and it is wasting my hobby time with this shiet
+	// https://tools.ietf.org/html/rfc1035#section-4.1.3
+	query.answer = [];
+	var amount = query.header.ancount;
+	for (var a = 0; a < amount; a++) {
+		if (req.length < position)
+			break; // dies if overflow, unstable code protection or random bullshit
+
 		var answer = new Object;
-		
-		answer.code = Buffer2Number(req.slice(position, position+=2));
-		answer.qtype = Buffer2Number(req.slice(position, position+=2));
-		answer.qclass = Buffer2Number(req.slice(position, position+=2));
-		answer.TTL = Buffer2Number(req.slice(position, position+=4));
-		answer.size = size = Buffer2Number(req.slice(position,position+=2));
-		answer.data = resolveDataThing(answer.qtype,req.slice(position,position+=size),query.question[0].data);
+
+		answer.code = Buffer2Number(req.slice(position, position += 2));
+		answer.qtype = Buffer2Number(req.slice(position, position += 2));
+		answer.qclass = Buffer2Number(req.slice(position, position += 2));
+		answer.TTL = Buffer2Number(req.slice(position, position += 4));
+		answer.size = size = Buffer2Number(req.slice(position, position += 2));
+		answer.data = resolveDataThing(answer.qtype, req.slice(position, position += size), query.question[0].data);
 
 		query.answer[a] = answer;
 	}
-	
-// Gathering Answers / Authoritative nameservers
-// TODO: URL HERE
-	query.namespace=[];
-    var amount = query.header.nscount;
-    for(var n=0;n<amount;n++){
-		if(req.length < position)break; // dies if overflow, unstable code protection or random bullshit
-		
+
+	// Gathering Answers / Authoritative nameservers
+	// TODO: URL HERE
+	query.namespace = [];
+	var amount = query.header.nscount;
+	for (var n = 0; n < amount; n++) {
+		if (req.length < position)
+			break; // dies if overflow, unstable code protection or random bullshit
+
 		var namespace = new Object;
-		
-        namespace.code = Buffer2Number(req.slice(position, position+=2));
-        namespace.qtype = qtype = Buffer2Number(req.slice(position, position+=2));
-        namespace.qclass = Buffer2Number(req.slice(position, position+=2));
-        namespace.TTL = Buffer2Number(req.slice(position, position+=4));
-        namespace.size = size = Buffer2Number(req.slice(position, position+=2));
-		namespace.size+=-20;
-		namespace.data = resolveDataThing(qtype,req.slice(position,position+=size-20),query.question[0].data); // no need to remember position now. learned a easy way of doing it.
-        namespace.serialCode = Buffer2Number(req.slice(position, position+=4));
-        namespace.RefreshInterval = Buffer2Number(req.slice(position, position+=4));
-        namespace.RetryInterval = Buffer2Number(req.slice(position, position+=4));
-        namespace.Expiration = Buffer2Number(req.slice(position, position+=4));
-        namespace.minimunTTL = Buffer2Number(req.slice(position, position+=4));
+
+		namespace.code = Buffer2Number(req.slice(position, position += 2));
+		namespace.qtype = qtype = Buffer2Number(req.slice(position, position += 2));
+		namespace.qclass = Buffer2Number(req.slice(position, position += 2));
+		namespace.TTL = Buffer2Number(req.slice(position, position += 4));
+		namespace.size = size = Buffer2Number(req.slice(position, position += 2));
+		namespace.size += -20;
+		namespace.data = resolveDataThing(qtype, req.slice(position, position += size - 20), query.question[0].data); // no need to remember position now. learned a easy way of doing it.
+		namespace.serialCode = Buffer2Number(req.slice(position, position += 4));
+		namespace.RefreshInterval = Buffer2Number(req.slice(position, position += 4));
+		namespace.RetryInterval = Buffer2Number(req.slice(position, position += 4));
+		namespace.Expiration = Buffer2Number(req.slice(position, position += 4));
+		namespace.minimunTTL = Buffer2Number(req.slice(position, position += 4));
 
 		query.namespace[n] = namespace;
 	}
-	
+
 	// Aditional will be required
 	query.extraData = req.slice(position, req.length);
-	
-    return query;
-}
-//var testmsg = Buffer.from([0xbb,0x63,0x81,0x80,0x01,0x00,0x08,0x00,0x00,0x00,0x00,0x00,0x03,0x74,0x6d,0x73,0x08,0x74,0x72,0x75,0x6f,0x70,0x74,0x69,0x6b,0x03,0x63,0x6f,0x6d,0x00,0x01,0x00,0x01,0x00,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x6e,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x86,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xb0,0x7f,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc0,0xf1,0x8f,0x43,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x50,0xa4,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0xc6,0xc7,0x4b,0x8d,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x43,0xcd,0x87,0x92,0x0c,0xc0,0x01,0x00,0x01,0x00,0x2e,0x00,0x00,0x00,0x04,0x00,0x9f,0xcb,0xbc,0x68]);
 
-//console.log(Buffer2DnsQuery(testmsg));
+	return query;
+}
