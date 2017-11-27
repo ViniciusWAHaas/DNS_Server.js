@@ -3,18 +3,23 @@ const server = dgram.createSocket('udp4');
 const dns = require('dns');
 const fs = require('fs');
 
-fs.mkdirTreeSync = function(path,lastfolder){
-		path = path.split('/');
-		lastpath=".";
-		for(var a=0;a<path.length-(lastfolder?0:1);a++){
-			try{fs.mkdirSync(lastpath=lastpath+"/"+path[a]);}catch(e){if(e.code != 'EEXIST')throw new Error(e);}
+fs.mkdirTreeSync = function (path, lastfolder) {
+	path = path.split('/');
+	lastpath = ".";
+	for (var a = 0; a < path.length - (lastfolder ? 0 : 1); a++) {
+		try {
+			fs.mkdirSync(lastpath = lastpath + "/" + path[a]);
+		} catch (e) {
+			if (e.code != 'EEXIST')
+				throw new Error(e);
 		}
-		return;
 	}
+	return;
+}
 
-const logoutput = fs.createWriteStream("./LOG/LOG_" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + ".json");
-
-const now = function(){return (new Date).getTime();}
+const now = function () {
+	return (new Date).getTime();
+}
 
 //	/**********************************************************************************************************************\
 //	* LOAD and SAVE System                                                                                                 *
@@ -23,23 +28,33 @@ const now = function(){return (new Date).getTime();}
 //	* SAVE and QUIT fires when CTROL + C is pressed                                                                        *
 //	\**********************************************************************************************************************/
 var DNS_SRV;
-DNS_SRV = JSON.parse(fs.readFileSync('./DNS_Queries.json', {encoding: 'utf8'}));
+try {	DNS_SRV = JSON.parse(fs.readFileSync('./DNS_Queries.json', {				encoding: 'utf8'			}));} catch (E) {	DNS_SRV = {};}
 process.stdin.setRawMode(true);
 process.stdin.on('data', function (key) {
-	for(var a=0;a<key.length;a++){
-		if (key[a] == 3) {	// Ctrol + C
+	for (var a = 0; a < key.length; a++) {
+		if (key[a] == 3) { // Ctrol + C
 			console.log("Gracefully stop server");
 			server.close();
-			fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {encoding: 'utf8'});
+			fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {
+				encoding: 'utf8'
+			});
 			process.stdin.setRawMode(false);
 			process.exit();
 		}
 		if (key[a] == 26 || key[a] == 19) { // Ctrol + Z
-			fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {encoding: 'utf8'});
+			fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {
+				encoding: 'utf8'
+			});
 			console.log("'DNS_Queries.json' Saved!");
 		}
 	}
 });
+setInterval(function () {	fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {		encoding: 'utf8'	});}, 60 * 10000);
+process.on('uncaughtException', (err) => {
+	fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {		encoding: 'utf8'	});
+  fs.writeSync(1, `Caught exception: ${err}\n`);
+});
+
 //	/**********************************************************************************************************************\
 //	* local storage for previous queries                                                                                   *
 //	*                                                                                                                      *
@@ -52,7 +67,7 @@ function GetDNameObject(Dname) {
 	var DnameTree = Dname.split(".").reverse();
 	var cachelevel = DNS_SRV.CACHE;
 	for (var a = 1; a < DnameTree.length; a++)
-		if(!cachelevel[DnameTree[a]])
+		if (!cachelevel[DnameTree[a]])
 			cachelevel = cachelevel[DnameTree[a]] = new Object();
 		else
 			cachelevel = cachelevel[DnameTree[a]];
@@ -68,12 +83,15 @@ function GetDNameObject(Dname) {
 var PORT = 53;
 var HOST = '127.0.0.1';
 
-
 server.on('listening', function () {
 	var address = server.address();
 	console.log('UDP Server listening on ' + address.address + ":" + address.port);
 });
-
+server.on('error', (err) => {
+  console.log(`server error:\n${err.stack}`);
+  fs.writeFileSync('./DNS_Queries.json', JSON.stringify(DNS_SRV, null, '\t'), {		encoding: 'utf8'	});
+  process.exit();
+});
 
 lastquery = {};
 
@@ -86,15 +104,17 @@ server.on('message', function (message, remote) {
 		server.send(message, remote.port, remote.address);
 		//		console.log(messager);
 		//im lazy fuck you
-	} catch (e) {console.log(e);}
+	} catch (e) {
+		console.log(e);
+	}
 	//The Real Deal
 	var client = new UDPTemporarynamething(message, function (response) {
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			console.log("\n" + JSON.stringify(new Date()).replace(/[^0-9T]/g, "") + "  " + JSON.stringify(remote));
 			console.log("1>" + message.toString('hex'));
 			console.log("2>" + messager.toString('hex'));
 			console.log("3>" + response.toString('hex'));
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			//server.send(response, remote.port, remote.address);
 			var DNS_Packet_IN = Buffer2DnsQuery(message);
 			var DNS_Packet_OUT = Buffer2DnsQuery(response);
@@ -105,20 +125,28 @@ server.on('message', function (message, remote) {
 
 			console.log("Header_IN: \t" + JSON.stringify(DNS_Packet_IN.header));
 			console.log("Header_OUT:\t" + JSON.stringify(DNS_Packet_OUT.header));
-			
+
 			console.log("Question_IN: \t" + JSON.stringify(DNS_Packet_IN.question));
 			console.log("Question_OUT: \t" + JSON.stringify(DNS_Packet_OUT.question));
-			
+
 			console.log("Answers_IN:   ");
-			DNS_Packet_IN.answer.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
+			DNS_Packet_IN.answer.forEach((a) => {
+				console.log("\t\t" + JSON.stringify(a));
+			})
 			console.log("Answers_OUT:  ");
-			DNS_Packet_OUT.answer.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
-			
+			DNS_Packet_OUT.answer.forEach((a) => {
+				console.log("\t\t" + JSON.stringify(a));
+			})
+
 			console.log("NameSpace_IN: ");
-			DNS_Packet_IN.namespace.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
+			DNS_Packet_IN.namespace.forEach((a) => {
+				console.log("\t\t" + JSON.stringify(a));
+			})
 			console.log("NameSpace_OUT:");
-			DNS_Packet_OUT.namespace.forEach((a) => {console.log("\t\t" + JSON.stringify(a));})
-			
+			DNS_Packet_OUT.namespace.forEach((a) => {
+				console.log("\t\t" + JSON.stringify(a));
+			})
+
 			console.log("Extra_IN:    " + DNS_Packet_IN.extraData);
 			console.log("Extra_OUT:   " + DNS_Packet_OUT.extraData);
 
@@ -134,7 +162,9 @@ server.on('message', function (message, remote) {
 				Logger.saveThis(Directory, response);
 			} catch (e) {}
 
-			try {dns.lookup(DNS_Packet_IN.question[0].data, function () {});} catch (e) {}
+			try {
+				dns.lookup(DNS_Packet_IN.question[0].data, function () {});
+			} catch (e) {}
 
 			DNS_Packet_OUT.answer.forEach((a) => {
 				for (var i = 0; i < NamethisObj; i++)
@@ -153,7 +183,7 @@ server.on('message', function (message, remote) {
 					}
 				NamethisObj.push([a.data, a.size, a.qclass, a.qtype, now(), a.serialCode]);
 			});
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		}, function (err) {
 			if (!(err === "Timeout"))
 				console.log("Error:" + Buffer2DnsQuery(message).question + "|" + err);
@@ -166,23 +196,32 @@ server.bind(PORT); //, HOST);
 //	* no need for introductions                                                                                            *
 //	* https://nodejs.org/api/dgram.html#dgram_socket_send_msg_offset_length_port_address_callback                          *
 //	\**********************************************************************************************************************/
-var counterqueryidk=50000;
-var UDPTemporarynamething = function(messg,callback,errorThis){
-	if(!callback) return;
-	if(!errorThis)
-		errorThis=function(){};
+var counterqueryidk = 50000;
+var UDPTemporarynamething = function (messg, callback, errorThis) {
+	if (!callback)
+		return;
+	if (!errorThis)
+		errorThis = function () {};
 	// A Client for forwarding msg
-    var client = dgram.createSocket('udp4');
-	
-//	client.on('listening', function(){console.log(JSON.stringify(client.address()))});
-	client.on('error', function(err){console.log(`server error:\n${err.stack}`);client.close();errorThis(err);});
-    client.on('message',callback);
-    client.bind(++counterqueryidk,function(){
-		setTimeout(function(){client.close();client.removeAllListeners();errorThis("Timeout");},1000*30);
-		client.send(messg,53,'10.8.0.20');//,function(err,bytes){if(err)return;console.log("wot\t"+JSON.stringify(bytes));server.send(msg, remote.port, remote.address);});
+	var client = dgram.createSocket('udp4');
+
+	//	client.on('listening', function(){console.log(JSON.stringify(client.address()))});
+	client.on('error', function (err) {
+		console.log(`server error:\n${err.stack}`);
+		client.close();
+		errorThis(err);
 	});
-	if(counterqueryidk >= 60000)
-		counterqueryidk=50000;
+	client.on('message', callback);
+	client.bind(++counterqueryidk, function () {
+		setTimeout(function () {
+			client.close();
+			client.removeAllListeners();
+			errorThis("Timeout");
+		}, 1000 * 30);
+		client.send(messg, 53, '10.8.0.20'); //,function(err,bytes){if(err)return;console.log("wot\t"+JSON.stringify(bytes));server.send(msg, remote.port, remote.address);});
+	});
+	if (counterqueryidk >= 60000)
+		counterqueryidk = 50000;
 	return client;
 };
 
@@ -192,29 +231,28 @@ var UDPTemporarynamething = function(messg,callback,errorThis){
 //	*                                                                                                                      *
 //	\**********************************************************************************************************************/
 var Logger = new Object();
-    Logger.folderoutput = function(){
-	var datetime = JSON.stringify(new Date()).replace(/[^0-9T]/g,"");
+Logger.folderoutput = function () {
+	var datetime = JSON.stringify(new Date()).replace(/[^0-9T]/g, "");
 	var LogFileOutput = "";
-	LogFileOutput+=    datetime.substr(0,4);
-	LogFileOutput+="/"+datetime.substr(4,2);
-	LogFileOutput+="/"+datetime.substr(6,2);
-	return [LogFileOutput,datetime];
+	LogFileOutput += datetime.substr(0, 4);
+	LogFileOutput += "/" + datetime.substr(4, 2);
+	LogFileOutput += "/" + datetime.substr(6, 2);
+	return [LogFileOutput, datetime];
 };
-    Logger.saveThis = function(directory,content){
-		fs.mkdirTreeSync(directory,false);
-		
-		var quick;
-		try{
-			quick=fs.createWriteStream(directory);
-		} catch(e){}
-		try{
-			quick.write(content);
-		} catch(e){}
-		try{
-			quick.close();
-		}catch(e){}
-	}
+Logger.saveThis = function (directory, content) {
+	fs.mkdirTreeSync(directory, false);
 
+	var quick;
+	try {
+		quick = fs.createWriteStream(directory);
+	} catch (e) {}
+	try {
+		quick.write(content);
+	} catch (e) {}
+	try {
+		quick.close();
+	} catch (e) {}
+}
 
 //	/**********************************************************************************************************************\
 //	* DNS PACKET DEASSEMBLER                                                                                               *
@@ -222,26 +260,136 @@ var Logger = new Object();
 //	* under development , yet                                                                                              *
 //	\**********************************************************************************************************************/
 
-// TODO : Learn class 
+// TODO : Learn class
 
 /* File: OBJ\DNSQuery.json */
-class DNSQuery {constructor() {this.raw= new Buffer([]);this.header= {id: 0,qr: false,opcode: 0,aa: false,tc: false,rd: false,ra: false,auth: false,authdata: false,z: 0,rcode: 0,qdcount: 0,ancount: 0,nscount: 0,arcount: 0};this.question= [];this.answer= [];this.namespace= [];}toString() {}print() {};};
-// usage:   var variablenome = ( new DNSQuery ) 
+class DNSQuery {
+	constructor() {
+		this.raw = new Buffer([]);
+		this.header = {
+			id: 0,
+			qr: false,
+			opcode: 0,
+			aa: false,
+			tc: false,
+			rd: false,
+			ra: false,
+			auth: false,
+			authdata: false,
+			z: 0,
+			rcode: 0,
+			qdcount: 0,
+			ancount: 0,
+			nscount: 0,
+			arcount: 0
+		};
+		this.question = [];
+		this.answer = [];
+		this.namespace = [];
+	}
+	toString() {}
+	print() {};
+};
+// usage:   var variablenome = ( new DNSQuery )
 
 /* File: OBJ\DNScodes.json */
 
 //	http://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
 //  https://tools.ietf.org/html/rfc6895
 
-var DNSqtype = {1:'A',2:'NS',3:'MD',4:'MF',5:'CNAME',6:'SOA',7:'MB',8:'MG',9:'MR',10:'NULL',11:'WKS',12:'PTR',13:'HINFO',14:'MINFO',15:'MX',16:'TXT',28:'AAAA',255:'*'};
+var DNSqtype = {
+	1: 'A',
+	2: 'NS',
+	3: 'MD',
+	4: 'MF',
+	5: 'CNAME',
+	6: 'SOA',
+	7: 'MB',
+	8: 'MG',
+	9: 'MR',
+	10: 'NULL',
+	11: 'WKS',
+	12: 'PTR',
+	13: 'HINFO',
+	14: 'MINFO',
+	15: 'MX',
+	16: 'TXT',
+	28: 'AAAA',
+	255: '*'
+};
 
-var DNSqclass = {0:"Reserved",1:'IN',2:"CS",3:"CH",4:"HS",254:"NONE",255:"ANY"};
-var DNSqclassName = {0:"Reserved",1:'Internet',2:"CSNET",3:"Chaos",4:"Hesiod",254:"none",255:"*"};
+var DNSqclass = {
+	0: "Reserved",
+	1: 'IN',
+	2: "CS",
+	3: "CH",
+	4: "HS",
+	254: "NONE",
+	255: "ANY"
+};
+var DNSqclassName = {
+	0: "Reserved",
+	1: 'Internet',
+	2: "CSNET",
+	3: "Chaos",
+	4: "Hesiod",
+	254: "none",
+	255: "*"
+};
 
-var DNSrpcode = {0:"NOERROR",1:"FORMERR",2:"SERVFAIL",3:"NXDOMAIN",4:"NOTIMP",5:"REFUSED",6:"YXDOMAIN",7:"YXRRSET",8:"NXRRSET",9:"NOTAUTH",10:"NOTZONE",11:"SSOPNOTIMP",16:"BADVERS",16:"BADSIG",17:"BADKEY",18:"BADTIME",19:"BADMODE",20:"BADNAME",21:"BADALG",22:"BADTRUNC",23:"BADCOOKIE"};
-var DNSrpcodeName = {0:"No Error",1:"Format Error",2:"Server Failure",3:"Non-Existent Domain",4:"Not Implemented",5:"Query Refused",6:"Name Exists when it should not",7:"RR Set Exists when it should not",8:"RR Set that should exist does not",9:"Server Not Authoritative for zone",10:"Name not contained in zone",16:"Bad OPT Version",6:"TSIG Signature Failure",17:"Key not recognized",18:"Signature out of time window",19:"Bad TKEY Mode",20:"Duplicate key name",21:"Algorithm not supported",22:"Bad Truncation",23:"Bad/missing Server Cookie"};
+var DNSrpcode = {
+	0: "NOERROR",
+	1: "FORMERR",
+	2: "SERVFAIL",
+	3: "NXDOMAIN",
+	4: "NOTIMP",
+	5: "REFUSED",
+	6: "YXDOMAIN",
+	7: "YXRRSET",
+	8: "NXRRSET",
+	9: "NOTAUTH",
+	10: "NOTZONE",
+	11: "SSOPNOTIMP",
+	16: "BADVERS",
+	16: "BADSIG",
+	17: "BADKEY",
+	18: "BADTIME",
+	19: "BADMODE",
+	20: "BADNAME",
+	21: "BADALG",
+	22: "BADTRUNC",
+	23: "BADCOOKIE"
+};
+var DNSrpcodeName = {
+	0: "No Error",
+	1: "Format Error",
+	2: "Server Failure",
+	3: "Non-Existent Domain",
+	4: "Not Implemented",
+	5: "Query Refused",
+	6: "Name Exists when it should not",
+	7: "RR Set Exists when it should not",
+	8: "RR Set that should exist does not",
+	9: "Server Not Authoritative for zone",
+	10: "Name not contained in zone",
+	16: "Bad OPT Version",
+	6: "TSIG Signature Failure",
+	17: "Key not recognized",
+	18: "Signature out of time window",
+	19: "Bad TKEY Mode",
+	20: "Duplicate key name",
+	21: "Algorithm not supported",
+	22: "Bad Truncation",
+	23: "Bad/missing Server Cookie"
+};
 
-var DNSopcodeName = {0:"Query",1:"Inverse Query",2:"Status",4:"Notify",5:"Update"};
+var DNSopcodeName = {
+	0: "Query",
+	1: "Inverse Query",
+	2: "Status",
+	4: "Notify",
+	5: "Update"
+};
 
 /*████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████*/
 /*
@@ -269,7 +417,7 @@ Quick Lab to bullshit.
 65280
 
 quicklab seems to realocate all bits from place , those outsite are thrown away, interesting
-*/
+ */
 function DnsQuery2Buffer(DNSQuery) {
 	var BufferContent = [];
 	BufferContent[0] = 0;
@@ -304,8 +452,7 @@ function DnsQuery2Buffer(DNSQuery) {
 	DNSQuery.question
 	DNSQuery.answer
 	DNSQuery.namespace
-	
-	
+
 	for (var a = 0; a < BufferContent.length; a++)
 		if (BufferContent[a] >= 256)
 			throw new Error("Something Hapenned while DnsQuery2Buffer():");
